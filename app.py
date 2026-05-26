@@ -19,7 +19,9 @@ OUTPUT_FOLDER = "output"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
-pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+# =========================================
+# SKU FIND FUNCTION
+# =========================================
 
 def extract_sku(text):
 
@@ -37,9 +39,18 @@ def extract_sku(text):
 
     return "ZZZ"
 
+# =========================================
+# HOME PAGE
+# =========================================
+
 @app.route("/")
 def home():
+
     return render_template("index.html")
+
+# =========================================
+# PDF UPLOAD + SORT
+# =========================================
 
 @app.route("/upload", methods=["POST"])
 def upload():
@@ -53,39 +64,58 @@ def upload():
 
     file.save(filepath)
 
+    # OPEN PDF
     doc = fitz.open(filepath)
 
     grouped = defaultdict(list)
+
+    # =========================================
+    # PAGE LOOP
+    # =========================================
 
     for page_num in range(len(doc)):
 
         page = doc.load_page(page_num)
 
+        # HIGH QUALITY IMAGE
         pix = page.get_pixmap(dpi=200)
 
         img_data = pix.tobytes("png")
 
         image = PILImage.open(io.BytesIO(img_data))
 
+        # =========================================
+        # OCR API
+        # =========================================
+
         response = requests.post(
-    "https://api.ocr.space/parse/image",
-    files={"filename": img_data},
-    data={
-        "apikey": "helloworld",
-        "language": "eng"
-    }
-)
+            "https://api.ocr.space/parse/image",
+            files={"filename": img_data},
+            data={
+                "apikey": "helloworld",
+                "language": "eng"
+            }
+        )
 
-result = response.json()
+        result = response.json()
 
-text = ""
+        text = ""
 
-if result.get("ParsedResults"):
-    text = result["ParsedResults"][0]["ParsedText"]
+        if result.get("ParsedResults"):
+
+            text = result["ParsedResults"][0]["ParsedText"]
+
+        # =========================================
+        # FIND SKU
+        # =========================================
 
         sku = extract_sku(text)
 
         grouped[sku].append(img_data)
+
+    # =========================================
+    # OUTPUT PDF
+    # =========================================
 
     output_pdf = os.path.join(
         OUTPUT_FOLDER,
@@ -94,10 +124,15 @@ if result.get("ParsedResults"):
 
     c = canvas.Canvas(output_pdf)
 
+    # =========================================
+    # SORTING
+    # =========================================
+
     for sku in sorted(grouped.keys()):
 
         items = grouped[sku]
 
+        # LABEL PAGES
         for img in items:
 
             image_reader = ImageReader(io.BytesIO(img))
@@ -112,6 +147,7 @@ if result.get("ParsedResults"):
 
             c.showPage()
 
+        # SUMMARY PAGE
         c.setFont("Helvetica-Bold", 24)
 
         c.drawString(
@@ -128,12 +164,22 @@ if result.get("ParsedResults"):
 
         c.showPage()
 
+    # SAVE PDF
     c.save()
 
+    # DOWNLOAD
     return send_file(
         output_pdf,
         as_attachment=True
     )
 
+# =========================================
+# RUN APP
+# =========================================
+
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=10000)
+
+    app.run(
+        host="0.0.0.0",
+        port=10000
+    )
