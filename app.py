@@ -18,62 +18,74 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
 
-# ----------------------------------------
+# -------------------------------------------------
 # SKU FIND FUNCTION
-# ----------------------------------------
+# -------------------------------------------------
 def extract_sku(text):
 
     text = text.upper()
 
-    ignore_words = [
-        "SIZE",
-        "COLOR",
-        "QTY",
-        "QUANTITY",
-        "NAME",
-        "ORDER",
-        "ITEM"
-    ]
+    # --------------------------------
+    # SKU ke niche wala text pakdega
+    # --------------------------------
+    match = re.search(
 
-    patterns = [
+        r"SKU\s+([A-Z0-9_-]+)",
 
-        r"SELLER SKU\s*[:\-]?\s*([A-Z0-9\-_]+)",
+        text,
 
-        r"SKU\s*[:\-]?\s*([A-Z0-9\-_]+)",
+        re.MULTILINE
 
-        r"FSN\s*[:\-]?\s*([A-Z0-9\-_]+)",
+    )
 
-    ]
+    if match:
 
-    for pattern in patterns:
+        sku = match.group(1).strip()
 
-        matches = re.findall(pattern, text)
+        ignore = [
+            "SIZE",
+            "COLOR",
+            "QTY",
+            "FREE",
+            "NA"
+        ]
 
-        for sku in matches:
+        if sku not in ignore:
 
-            sku = sku.strip()
+            return sku
 
-            if sku not in ignore_words:
+    # --------------------------------
+    # Backup direct pattern
+    # Example:
+    # 188042787_70
+    # --------------------------------
+    match2 = re.search(
 
-                if len(sku) >= 3:
+        r"\b\d{6,}[_-]\d+\b",
 
-                    return sku
+        text
+
+    )
+
+    if match2:
+
+        return match2.group(0)
 
     return "UNKNOWN"
 
 
-# ----------------------------------------
+# -------------------------------------------------
 # HOME PAGE
-# ----------------------------------------
+# -------------------------------------------------
 @app.route("/")
 def home():
 
     return render_template("index.html")
 
 
-# ----------------------------------------
-# UPLOAD
-# ----------------------------------------
+# -------------------------------------------------
+# UPLOAD PDF
+# -------------------------------------------------
 @app.route("/upload", methods=["POST"])
 def upload():
 
@@ -83,7 +95,7 @@ def upload():
 
         if file.filename == "":
 
-            return "NO FILE"
+            return "NO FILE SELECTED"
 
         filepath = os.path.join(
             UPLOAD_FOLDER,
@@ -100,92 +112,127 @@ def upload():
 
         print("TOTAL PAGES :", total_pages)
 
-        # ----------------------------------------
+        # -------------------------------------------------
         # READ ALL PAGES
-        # ----------------------------------------
+        # -------------------------------------------------
         for page_num in range(total_pages):
 
             page = doc.load_page(page_num)
 
+            # ---------------------------------------------
+            # DIRECT PDF TEXT
+            # ---------------------------------------------
             text = page.get_text()
 
             sku = extract_sku(text)
 
             print(
+
                 f"PAGE {page_num+1} => SKU : {sku}"
+
             )
 
+            # ---------------------------------------------
+            # PAGE IMAGE
+            # ---------------------------------------------
             pix = page.get_pixmap(dpi=200)
 
             img_data = pix.tobytes("png")
 
             grouped[sku].append(img_data)
 
-        # ----------------------------------------
+        # -------------------------------------------------
         # OUTPUT PDF
-        # ----------------------------------------
+        # -------------------------------------------------
         output_pdf = os.path.join(
+
             OUTPUT_FOLDER,
+
             "SORTED_" + file.filename
+
         )
 
         c = canvas.Canvas(output_pdf)
 
-        # ----------------------------------------
-        # SKU SORTING
-        # ----------------------------------------
+        # -------------------------------------------------
+        # SORT SKU WISE
+        # -------------------------------------------------
         for sku in sorted(grouped.keys()):
 
             items = grouped[sku]
 
-            # ----------------------------------------
+            print("WRITING SKU :", sku)
+
+            # ---------------------------------------------
             # LABEL PAGES
-            # ----------------------------------------
+            # ---------------------------------------------
             for img in items:
 
                 image_reader = ImageReader(
+
                     io.BytesIO(img)
+
                 )
 
                 c.drawImage(
+
                     image_reader,
+
                     0,
+
                     0,
+
                     width=595,
+
                     height=842
+
                 )
 
                 c.showPage()
 
-            # ----------------------------------------
+            # ---------------------------------------------
             # SUMMARY PAGE
-            # ----------------------------------------
+            # ---------------------------------------------
             c.setFont(
+
                 "Helvetica-Bold",
-                28
+
+                30
+
             )
 
             c.drawString(
-                170,
+
+                160,
+
                 550,
+
                 f"SKU : {sku}"
+
             )
 
             c.drawString(
+
                 120,
+
                 470,
+
                 f"TOTAL LABELS : {len(items)}"
+
             )
 
             c.showPage()
 
         c.save()
 
-        print("DONE")
+        print("PDF COMPLETE")
 
         return send_file(
+
             output_pdf,
+
             as_attachment=True
+
         )
 
     except Exception as e:
@@ -195,13 +242,17 @@ def upload():
         return f"ERROR : {str(e)}"
 
 
-# ----------------------------------------
+# -------------------------------------------------
 # RUN APP
-# ----------------------------------------
+# -------------------------------------------------
 if __name__ == "__main__":
 
     app.run(
+
         host="0.0.0.0",
+
         port=10000,
+
         debug=False
+
     )
