@@ -1,11 +1,10 @@
-```python
 from flask import Flask, render_template, request, send_file
 import fitz
 import requests
-from PIL import Image as PILImage
 import io
 import re
 import os
+import time
 
 from collections import defaultdict
 
@@ -21,7 +20,7 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
 # =========================================
-# SKU FIND FUNCTION
+# SKU FIND
 # =========================================
 
 def extract_sku(text):
@@ -41,7 +40,7 @@ def extract_sku(text):
     return "ZZZ"
 
 # =========================================
-# HOME PAGE
+# HOME
 # =========================================
 
 @app.route("/")
@@ -50,7 +49,7 @@ def home():
     return render_template("index.html")
 
 # =========================================
-# PDF UPLOAD + SORT
+# UPLOAD
 # =========================================
 
 @app.route("/upload", methods=["POST"])
@@ -60,9 +59,6 @@ def upload():
 
         file = request.files["pdf"]
 
-        if file.filename == "":
-            return "No file selected"
-
         filepath = os.path.join(
             UPLOAD_FOLDER,
             file.filename
@@ -70,27 +66,24 @@ def upload():
 
         file.save(filepath)
 
-        # OPEN PDF
         doc = fitz.open(filepath)
-
-        grouped = defaultdict(list)
 
         total_pages = len(doc)
 
+        grouped = defaultdict(list)
+
         # =========================================
-        # PAGE LOOP
+        # PROCESS PAGES
         # =========================================
 
         for page_num in range(total_pages):
 
             page = doc.load_page(page_num)
 
-            # LOWER DPI FOR FASTER SPEED
+            # FAST RENDER
             pix = page.get_pixmap(dpi=70)
 
             img_data = pix.tobytes("png")
-
-            image = PILImage.open(io.BytesIO(img_data))
 
             # =========================================
             # OCR API
@@ -127,9 +120,7 @@ def upload():
 
                     text = ""
 
-            except Exception as e:
-
-                print("OCR ERROR:", e)
+            except:
 
                 text = ""
 
@@ -141,7 +132,13 @@ def upload():
 
             grouped[sku].append(img_data)
 
-            print(f"PAGE {page_num + 1}/{total_pages} DONE")
+            # TERMINAL PROGRESS
+            percent = int(((page_num + 1) / total_pages) * 100)
+
+            print(
+                f"PROCESSING : {percent}% "
+                f"({page_num + 1}/{total_pages})"
+            )
 
         # =========================================
         # OUTPUT PDF
@@ -155,14 +152,15 @@ def upload():
         c = canvas.Canvas(output_pdf)
 
         # =========================================
-        # SORTING
+        # SORT SKU
         # =========================================
 
-        for sku in sorted(grouped.keys()):
+        sorted_skus = sorted(grouped.keys())
+
+        for sku in sorted_skus:
 
             items = grouped[sku]
 
-            # LABEL PAGES
             for img in items:
 
                 image_reader = ImageReader(io.BytesIO(img))
@@ -177,14 +175,14 @@ def upload():
 
                 c.showPage()
 
-            # SUMMARY PAGE
-            
-        # SAVE PDF
         c.save()
 
-        print("PDF CREATED")
+        print("DONE SUCCESSFULLY")
 
-        # DOWNLOAD
+        # =========================================
+        # RETURN PDF
+        # =========================================
+
         return send_file(
             output_pdf,
             as_attachment=True
@@ -192,12 +190,10 @@ def upload():
 
     except Exception as e:
 
-        print("MAIN ERROR:", e)
-
         return f"ERROR : {str(e)}"
 
 # =========================================
-# RUN APP
+# RUN
 # =========================================
 
 if __name__ == "__main__":
@@ -206,4 +202,3 @@ if __name__ == "__main__":
         host="0.0.0.0",
         port=10000
     )
-```
