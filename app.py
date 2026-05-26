@@ -1,8 +1,5 @@
 from flask import Flask, render_template, request, send_file
 import fitz
-import requests
-from PIL import Image as PILImage
-import io
 import re
 import os
 
@@ -24,20 +21,20 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
 # =====================================
-# SKU FIND FUNCTION
+# SKU FIND
 # =====================================
 
 def extract_sku(text):
 
     patterns = [
 
-        r'FNSKU\s*[:\-]?\s*([A-Z0-9_-]+)',
+        r'FNSKU[: ]+([A-Z0-9]+)',
 
-        r'ASIN\s*[:\-]?\s*([A-Z0-9_-]+)',
+        r'ASIN[: ]+([A-Z0-9]+)',
 
-        r'SKU\s*[:\-]?\s*([A-Z0-9_-]+)',
+        r'SKU[: ]+([A-Z0-9_-]+)',
 
-        r'Seller SKU\s*[:\-]?\s*([A-Z0-9_-]+)',
+        r'Seller SKU[: ]+([A-Z0-9_-]+)',
 
     ]
 
@@ -51,7 +48,7 @@ def extract_sku(text):
     return "ZZZ"
 
 # =====================================
-# HOME PAGE
+# HOME
 # =====================================
 
 @app.route("/")
@@ -60,7 +57,7 @@ def home():
     return render_template("index.html")
 
 # =====================================
-# PDF UPLOAD + SORT
+# UPLOAD
 # =====================================
 
 @app.route("/upload", methods=["POST"])
@@ -71,7 +68,7 @@ def upload():
         file = request.files["pdf"]
 
         if not file:
-            return "No File Selected"
+            return "No File"
 
         filepath = os.path.join(
             UPLOAD_FOLDER,
@@ -80,10 +77,6 @@ def upload():
 
         file.save(filepath)
 
-        # =====================================
-        # OPEN PDF
-        # =====================================
-
         doc = fitz.open(filepath)
 
         grouped = defaultdict(list)
@@ -91,76 +84,27 @@ def upload():
         total_pages = len(doc)
 
         # =====================================
-        # OCR PROCESS
+        # PAGE LOOP
         # =====================================
 
         for page_num in range(total_pages):
 
-            try:
+            page = doc.load_page(page_num)
 
-                print(f"PAGE : {page_num + 1}")
+            # DIRECT TEXT
+            text = page.get_text()
 
-                page = doc.load_page(page_num)
+            print(text)
 
-                # BETTER QUALITY
-                pix = page.get_pixmap(dpi=200)
+            sku = extract_sku(text)
 
-                img_data = pix.tobytes("png")
+            print("FOUND SKU :", sku)
 
-                image = PILImage.open(
-                    io.BytesIO(img_data)
-                )
+            pix = page.get_pixmap(dpi=200)
 
-                # =====================================
-                # OCR API
-                # =====================================
+            img_data = pix.tobytes("png")
 
-                response = requests.post(
-
-                    "https://api.ocr.space/parse/image",
-
-                    files={
-                        "filename": img_data
-                    },
-
-                    data={
-                        "apikey": "helloworld",
-                        "language": "eng",
-                        "OCREngine": 2
-                    }
-
-                )
-
-                result = response.json()
-
-                text = ""
-
-                if result.get("ParsedResults"):
-
-                    text = result["ParsedResults"][0]["ParsedText"]
-
-                # =====================================
-                # DEBUG OCR TEXT
-                # =====================================
-
-                print("========== OCR TEXT ==========")
-                print(text)
-
-                # =====================================
-                # SKU FIND
-                # =====================================
-
-                sku = extract_sku(text)
-
-                print("FOUND SKU :", sku)
-
-                grouped[sku].append(img_data)
-
-            except Exception as page_error:
-
-                print("PAGE ERROR :", page_num + 1)
-
-                print(str(page_error))
+            grouped[sku].append(img_data)
 
         # =====================================
         # OUTPUT PDF
@@ -177,22 +121,17 @@ def upload():
         c = canvas.Canvas(output_pdf)
 
         # =====================================
-        # SORTING
+        # SORT SKU
         # =====================================
 
         for sku in sorted(grouped.keys()):
 
             items = grouped[sku]
 
-            # =====================================
             # LABEL PAGES
-            # =====================================
-
             for img in items:
 
-                image_reader = ImageReader(
-                    io.BytesIO(img)
-                )
+                image_reader = ImageReader(img)
 
                 c.drawImage(
 
@@ -208,9 +147,7 @@ def upload():
 
                 c.showPage()
 
-            # =====================================
             # SUMMARY PAGE
-            # =====================================
 
             c.setFont(
                 "Helvetica-Bold",
@@ -231,15 +168,7 @@ def upload():
 
             c.showPage()
 
-        # =====================================
-        # SAVE PDF
-        # =====================================
-
         c.save()
-
-        # =====================================
-        # RETURN PDF
-        # =====================================
 
         return send_file(
 
@@ -254,7 +183,7 @@ def upload():
         return f"ERROR : {str(e)}"
 
 # =====================================
-# RUN APP
+# RUN
 # =====================================
 
 if __name__ == "__main__":
