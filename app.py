@@ -5,6 +5,8 @@ import os
 import re
 import requests
 
+from PIL import Image
+
 from collections import defaultdict
 
 app = Flask(__name__)
@@ -48,67 +50,36 @@ def clean_sku(value):
         "SKU"
     ]
 
-    # blacklist reject
     if value in blacklist:
         return None
 
-    # too small reject
     if len(value) < 5:
         return None
 
-    # only letters reject
     if value.isalpha():
         return None
 
-    # only numbers reject
     if value.isdigit():
         return None
 
-    # tracking id reject
+    # tracking reject
     if re.fullmatch(r"[A-Z]{2,5}[0-9]{8,}", value):
         return None
 
-    # courier code reject
+    # courier reject
     if re.fullmatch(r"[A-Z]{2,5}\-[A-Z0-9]+", value):
-        return None
-
-    # must contain letters + numbers
-    has_letter = any(c.isalpha() for c in value)
-    has_number = any(c.isdigit() for c in value)
-
-    if not (has_letter and has_number):
         return None
 
     return value
 
 
 # -----------------------------------
-# FIND SKU FROM TEXT
+# EXTRACT SKU
 # -----------------------------------
-def extract_sku_from_text(text):
+def extract_sku(text):
 
     lines = text.split("\n")
 
-    # pass 1 → after SKU word
-    for i, line in enumerate(lines):
-
-        line_upper = line.upper()
-
-        if "SKU" in line_upper:
-
-            for j in range(1, 5):
-
-                if i + j >= len(lines):
-                    continue
-
-                candidate = lines[i + j]
-
-                sku = clean_sku(candidate)
-
-                if sku:
-                    return sku
-
-    # pass 2 → scan all lines
     for line in lines:
 
         words = line.split()
@@ -124,9 +95,28 @@ def extract_sku_from_text(text):
 
 
 # -----------------------------------
-# OCR API
+# OCR ONLY SKU AREA
 # -----------------------------------
-def extract_sku_ocr(img_data):
+def ocr_sku_area(page):
+
+    # -----------------------------------
+    # CROP AREA
+    # LEFT, TOP, RIGHT, BOTTOM
+    # -----------------------------------
+
+    rect = fitz.Rect(
+        50,
+        150,
+        400,
+        450
+    )
+
+    pix = page.get_pixmap(
+        matrix=fitz.Matrix(3, 3),
+        clip=rect
+    )
+
+    img_data = pix.tobytes("png")
 
     try:
 
@@ -154,7 +144,10 @@ def extract_sku_ocr(img_data):
 
             text = result["ParsedResults"][0]["ParsedText"]
 
-        sku = extract_sku_from_text(text)
+        print("OCR TEXT:")
+        print(text)
+
+        sku = extract_sku(text)
 
         return sku
 
@@ -185,7 +178,7 @@ def upload():
         file = request.files["pdf"]
 
         if file.filename == "":
-            return "NO FILE SELECTED"
+            return "NO FILE"
 
         filepath = os.path.join(
             UPLOAD_FOLDER,
@@ -198,36 +191,23 @@ def upload():
 
         grouped = defaultdict(list)
 
-        total_pages = len(doc)
-
         # -----------------------------------
-        # PROCESS PAGES
+        # PAGE LOOP
         # -----------------------------------
-        for page_num in range(total_pages):
+        for page_num in range(len(doc)):
 
             page = doc.load_page(page_num)
 
-            # -----------------------------
-            # FAST TEXT EXTRACTION
-            # -----------------------------
+            # FAST TEXT TRY
             text = page.get_text()
 
-            sku = extract_sku_from_text(text)
+            sku = extract_sku(text)
 
-            # -----------------------------
-            # OCR FALLBACK
-            # -----------------------------
+            # OCR fallback
             if not sku:
 
-                pix = page.get_pixmap(dpi=180)
+                sku = ocr_sku_area(page)
 
-                img_data = pix.tobytes("png")
-
-                sku = extract_sku_ocr(img_data)
-
-            # -----------------------------
-            # FINAL FALLBACK
-            # -----------------------------
             if not sku:
                 sku = "UNKNOWN"
 
@@ -238,7 +218,7 @@ def upload():
             grouped[sku].append(page_num)
 
         # -----------------------------------
-        # CREATE SORTED PDF
+        # OUTPUT PDF
         # -----------------------------------
         output_pdf = os.path.join(
             OUTPUT_FOLDER,
@@ -247,12 +227,11 @@ def upload():
 
         new_doc = fitz.open()
 
-        # sort sku wise
         for sku in sorted(grouped.keys()):
 
             pages = grouped[sku]
 
-            # insert actual pages
+            # actual pages
             for pno in pages:
 
                 new_doc.insert_pdf(
