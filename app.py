@@ -1,11 +1,13 @@
 from flask import Flask, render_template, request, send_file
 import fitz
+from PIL import Image as PILImage
+import io
 import re
 import os
 from collections import defaultdict
 from reportlab.pdfgen import canvas
 from reportlab.lib.utils import ImageReader
-import io
+import requests
 
 app = Flask(__name__)
 
@@ -16,9 +18,9 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
 
-# --------------------------------
-# SKU FIND FUNCTION
-# --------------------------------
+# ------------------------------------
+# SKU EXTRACT FUNCTION
+# ------------------------------------
 def extract_sku(text):
 
     text = text.upper()
@@ -29,7 +31,10 @@ def extract_sku(text):
 
         r"SKU\s*\n\s*([A-Z0-9_-]+)",
 
-        r"SELLER SKU\s*[:\-]?\s*([A-Z0-9_-]+)"
+        r"SELLER SKU\s*[:\-]?\s*([A-Z0-9_-]+)",
+
+        # direct sku number
+        r"\b\d{6,}[_-]\d+\b"
 
     ]
 
@@ -39,25 +44,28 @@ def extract_sku(text):
 
         if match:
 
-            sku = match.group(1).strip()
+            if match.groups():
+                sku = match.group(1).strip()
+            else:
+                sku = match.group(0).strip()
 
-            if len(sku) > 2:
+            if len(sku) > 3:
                 return sku
 
     return "ZZZ"
 
 
-# --------------------------------
+# ------------------------------------
 # HOME
-# --------------------------------
+# ------------------------------------
 @app.route("/")
 def home():
     return render_template("index.html")
 
 
-# --------------------------------
+# ------------------------------------
 # UPLOAD
-# --------------------------------
+# ------------------------------------
 @app.route("/upload", methods=["POST"])
 def upload():
 
@@ -66,7 +74,7 @@ def upload():
         file = request.files["pdf"]
 
         if file.filename == "":
-            return "NO FILE"
+            return "NO FILE SELECTED"
 
         filepath = os.path.join(
             UPLOAD_FOLDER,
@@ -81,29 +89,75 @@ def upload():
 
         total_pages = len(doc)
 
-        # --------------------------------
+        # ------------------------------------
         # PAGE LOOP
-        # --------------------------------
+        # ------------------------------------
         for page_num in range(total_pages):
 
             page = doc.load_page(page_num)
 
-            # DIRECT TEXT EXTRACTION
+            # ------------------------------------
+            # FIRST TRY DIRECT PDF TEXT
+            # ------------------------------------
             text = page.get_text()
 
-            # FIND SKU
             sku = extract_sku(text)
 
-            print("FOUND SKU:", sku)
+            # ------------------------------------
+            # IF NOT FOUND THEN OCR
+            # ------------------------------------
+            if sku == "ZZZ":
 
-            # SAVE PAGE
-            pdf_bytes = doc.extract_page(page_num)
+                pix = page.get_pixmap(dpi=200)
 
-            grouped[sku].append(pdf_bytes)
+                img_data = pix.tobytes("png")
 
-        # --------------------------------
+                try:
+
+                    response = requests.post(
+                        "https://api.ocr.space/parse/image",
+                        files={
+                            "filename": (
+                                "page.png",
+                                img_data,
+                                "image/png"
+                            )
+                        },
+                        data={
+                            "apikey": "helloworld",
+                            "language": "eng"
+                        },
+                        timeout=60
+                    )
+
+                    result = response.json()
+
+                    ocr_text = ""
+
+                    if result.get("ParsedResults"):
+
+                        ocr_text = result["ParsedResults"][0]["ParsedText"]
+
+                    sku = extract_sku(ocr_text)
+
+                except Exception as e:
+
+                    print("OCR ERROR :", e)
+
+            print("PAGE", page_num + 1, "SKU :", sku)
+
+            # ------------------------------------
+            # SAVE IMAGE
+            # ------------------------------------
+            pix = page.get_pixmap(dpi=200)
+
+            img_data = pix.tobytes("png")
+
+            grouped[sku].append(img_data)
+
+        # ------------------------------------
         # OUTPUT PDF
-        # --------------------------------
+        # ------------------------------------
         output_pdf = os.path.join(
             OUTPUT_FOLDER,
             "SORTED_" + file.filename
@@ -111,27 +165,17 @@ def upload():
 
         c = canvas.Canvas(output_pdf)
 
-        # --------------------------------
-        # SKU SORT
-        # --------------------------------
+        # ------------------------------------
+        # SORT SKU WISE
+        # ------------------------------------
         for sku in sorted(grouped.keys()):
 
             items = grouped[sku]
 
-            for pdf_page in items:
+            # LABELS
+            for img in items:
 
-                temp_doc = fitz.open(
-                    "pdf",
-                    pdf_page
-                )
-
-                pix = temp_doc[0].get_pixmap(dpi=200)
-
-                img_data = pix.tobytes("png")
-
-                image_reader = ImageReader(
-                    io.BytesIO(img_data)
-                )
+                image_reader = ImageReader(io.BytesIO(img))
 
                 c.drawImage(
                     image_reader,
@@ -143,14 +187,13 @@ def upload():
 
                 c.showPage()
 
+            # ------------------------------------
             # SUMMARY PAGE
-            c.setFont(
-                "Helvetica-Bold",
-                26
-            )
+            # ------------------------------------
+            c.setFont("Helvetica-Bold", 28)
 
             c.drawString(
-                160,
+                150,
                 550,
                 f"SKU : {sku}"
             )
@@ -175,9 +218,9 @@ def upload():
         return f"ERROR : {str(e)}"
 
 
-# --------------------------------
+# ------------------------------------
 # RUN
-# --------------------------------
+# ------------------------------------
 if __name__ == "__main__":
 
     app.run(
