@@ -1,10 +1,11 @@
 from flask import Flask, render_template, request, send_file
 import fitz
-from PIL import Image as PILImage
 import io
 import re
 import os
+
 from collections import defaultdict
+
 from reportlab.pdfgen import canvas
 from reportlab.lib.utils import ImageReader
 
@@ -17,81 +18,89 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
 
-# ---------------------------------------------------
-# REAL SKU DETECTION
-# ---------------------------------------------------
+# -------------------------------------------------
+# SKU DETECTION
+# -------------------------------------------------
 def extract_sku(text):
 
-    # CLEAN TEXT
-    text = text.replace("\n", " ")
-    text = text.replace("\r", " ")
+    lines = text.split("\n")
 
-    # REMOVE EXTRA SPACES
-    text = re.sub(r"\s+", " ", text)
-
-    # ----------------------------------------
-    # TRY TO FIND SKU AFTER "SKU"
-    # ----------------------------------------
-    patterns = [
-
-        # SKU 535971583_67
-        r"SKU\s+([0-9]{6,}_[0-9]+)",
-
-        # SKU APCD07
-        r"SKU\s+([A-Z0-9]{4,})",
-
-        # Product Details SKU 535971583_67
-        r"Product Details.*?SKU\s+([A-Z0-9_-]+)",
-
-    ]
-
-    blocked_words = [
-
+    blocked = [
         "SIZE",
         "COLOR",
         "QTY",
         "FREE",
-        "NA",
         "NO24A",
-        "TS_AN",
-        "S46_SME"
-
+        "NA"
     ]
 
-    for pattern in patterns:
+    for i in range(len(lines)):
 
-        match = re.search(pattern, text, re.I)
+        line = lines[i].strip().upper()
+
+        # -------------------------
+        # FIND SKU LINE
+        # -------------------------
+        if line == "SKU":
+
+            # NEXT LINE VALUE
+            if i + 1 < len(lines):
+
+                next_line = lines[i + 1].strip()
+
+                next_line_upper = next_line.upper()
+
+                # BLOCK WRONG VALUES
+                if next_line_upper in blocked:
+                    continue
+
+                # TRACKING ID BLOCK
+                if next_line_upper.startswith("SF"):
+                    continue
+
+                # VALID SKU
+                if len(next_line) >= 4:
+                    return next_line
+
+        # -------------------------
+        # SKU : VALUE
+        # -------------------------
+        match = re.search(
+            r"SKU\s*[:\-]?\s*([A-Z0-9_ -]+)",
+            line,
+            re.I
+        )
 
         if match:
 
-            sku = match.group(1).strip().upper()
+            sku = match.group(1).strip()
 
-            # REMOVE WRONG VALUES
-            if sku not in blocked_words:
+            sku_upper = sku.upper()
 
-                # TRACKING ID BLOCK
-                if not sku.startswith("SF"):
+            if sku_upper in blocked:
+                continue
 
-                    # VERY LONG NUMBER BLOCK
-                    if len(sku) < 25:
+            if sku_upper.startswith("SF"):
+                continue
 
-                        return sku
+            if len(sku) >= 4:
+                return sku
 
     return "UNKNOWN"
 
 
-# ---------------------------------------------------
-# HOME PAGE
-# ---------------------------------------------------
+# -------------------------------------------------
+# HOME
+# -------------------------------------------------
 @app.route("/")
 def home():
 
     return render_template("index.html")
 
 
-# ---------------------------------------------------
-# UPLOAD PDF
-# ---------------------------------------------------
+# -------------------------------------------------
+# UPLOAD
+# -------------------------------------------------
 @app.route("/upload", methods=["POST"])
 def upload():
 
@@ -100,8 +109,7 @@ def upload():
         file = request.files["pdf"]
 
         if file.filename == "":
-
-            return "NO FILE SELECTED"
+            return "NO FILE"
 
         filepath = os.path.join(
             UPLOAD_FOLDER,
@@ -114,34 +122,33 @@ def upload():
 
         grouped = defaultdict(list)
 
-        total_pages = len(doc)
-
-        # ----------------------------------------
+        # -------------------------------------
         # READ ALL PAGES
-        # ----------------------------------------
-        for page_num in range(total_pages):
+        # -------------------------------------
+        for page_num in range(len(doc)):
 
             page = doc.load_page(page_num)
 
-            # DIRECT TEXT EXTRACTION
+            # TEXT
             text = page.get_text()
+
+            print(text)
 
             # FIND SKU
             sku = extract_sku(text)
 
-            print("PAGE :", page_num + 1)
-            print("FOUND SKU :", sku)
+            print("FOUND SKU =", sku)
 
-            # PAGE IMAGE
+            # IMAGE
             pix = page.get_pixmap(dpi=200)
 
             img_data = pix.tobytes("png")
 
             grouped[sku].append(img_data)
 
-        # ----------------------------------------
+        # -------------------------------------
         # OUTPUT PDF
-        # ----------------------------------------
+        # -------------------------------------
         output_pdf = os.path.join(
             OUTPUT_FOLDER,
             "SORTED_" + file.filename
@@ -149,19 +156,17 @@ def upload():
 
         c = canvas.Canvas(output_pdf)
 
-        # ----------------------------------------
         # SORT SKU WISE
-        # ----------------------------------------
         for sku in sorted(grouped.keys()):
 
             items = grouped[sku]
 
-            # -----------------------------
             # LABEL PAGES
-            # -----------------------------
             for img in items:
 
-                image_reader = ImageReader(io.BytesIO(img))
+                image_reader = ImageReader(
+                    io.BytesIO(img)
+                )
 
                 c.drawImage(
                     image_reader,
@@ -173,20 +178,21 @@ def upload():
 
                 c.showPage()
 
-            # -----------------------------
             # SUMMARY PAGE
-            # -----------------------------
-            c.setFont("Helvetica-Bold", 28)
+            c.setFont(
+                "Helvetica-Bold",
+                28
+            )
 
             c.drawString(
-                150,
+                130,
                 550,
                 f"SKU : {sku}"
             )
 
             c.drawString(
-                120,
-                480,
+                100,
+                470,
                 f"TOTAL LABELS : {len(items)}"
             )
 
@@ -204,9 +210,9 @@ def upload():
         return f"ERROR : {str(e)}"
 
 
-# ---------------------------------------------------
-# RUN APP
-# ---------------------------------------------------
+# -------------------------------------------------
+# RUN
+# -------------------------------------------------
 if __name__ == "__main__":
 
     app.run(
