@@ -1,10 +1,11 @@
 from flask import Flask, render_template, request, send_file
 import fitz
-from PIL import Image as PILImage
 import io
 import re
 import os
+
 from collections import defaultdict
+
 from reportlab.pdfgen import canvas
 from reportlab.lib.utils import ImageReader
 
@@ -17,51 +18,62 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
 
-# ---------------------------------
+# ----------------------------------------
 # SKU FIND FUNCTION
-# ---------------------------------
+# ----------------------------------------
 def extract_sku(text):
 
     text = text.upper()
 
+    ignore_words = [
+        "SIZE",
+        "COLOR",
+        "QTY",
+        "QUANTITY",
+        "NAME",
+        "ORDER",
+        "ITEM"
+    ]
+
     patterns = [
 
-        r"SKU\s*[:\-]?\s*([A-Z0-9_-]+)",
+        r"SELLER SKU\s*[:\-]?\s*([A-Z0-9\-_]+)",
 
-        r"SELLER SKU\s*[:\-]?\s*([A-Z0-9_-]+)",
+        r"SKU\s*[:\-]?\s*([A-Z0-9\-_]+)",
 
-        r"SKU\s*\n\s*([A-Z0-9_-]+)",
-
-        r"FSN\s*[:\-]?\s*([A-Z0-9_-]+)",
+        r"FSN\s*[:\-]?\s*([A-Z0-9\-_]+)",
 
     ]
 
     for pattern in patterns:
 
-        match = re.search(pattern, text)
+        matches = re.findall(pattern, text)
 
-        if match:
+        for sku in matches:
 
-            sku = match.group(1).strip()
+            sku = sku.strip()
 
-            if len(sku) > 2:
-                return sku
+            if sku not in ignore_words:
 
-    return "ZZZ"
+                if len(sku) >= 3:
+
+                    return sku
+
+    return "UNKNOWN"
 
 
-# ---------------------------------
+# ----------------------------------------
 # HOME PAGE
-# ---------------------------------
+# ----------------------------------------
 @app.route("/")
 def home():
 
     return render_template("index.html")
 
 
-# ---------------------------------
-# UPLOAD PDF
-# ---------------------------------
+# ----------------------------------------
+# UPLOAD
+# ----------------------------------------
 @app.route("/upload", methods=["POST"])
 def upload():
 
@@ -70,7 +82,8 @@ def upload():
         file = request.files["pdf"]
 
         if file.filename == "":
-            return "NO FILE SELECTED"
+
+            return "NO FILE"
 
         filepath = os.path.join(
             UPLOAD_FOLDER,
@@ -87,38 +100,30 @@ def upload():
 
         print("TOTAL PAGES :", total_pages)
 
-        # ---------------------------------
+        # ----------------------------------------
         # READ ALL PAGES
-        # ---------------------------------
+        # ----------------------------------------
         for page_num in range(total_pages):
 
             page = doc.load_page(page_num)
 
-            # ---------------------------------
-            # DIRECT PDF TEXT
-            # ---------------------------------
             text = page.get_text()
 
-            # ---------------------------------
-            # FIND SKU
-            # ---------------------------------
             sku = extract_sku(text)
 
-            print("PAGE :", page_num + 1)
-            print("FOUND SKU :", sku)
+            print(
+                f"PAGE {page_num+1} => SKU : {sku}"
+            )
 
-            # ---------------------------------
-            # PAGE IMAGE
-            # ---------------------------------
             pix = page.get_pixmap(dpi=200)
 
             img_data = pix.tobytes("png")
 
             grouped[sku].append(img_data)
 
-        # ---------------------------------
+        # ----------------------------------------
         # OUTPUT PDF
-        # ---------------------------------
+        # ----------------------------------------
         output_pdf = os.path.join(
             OUTPUT_FOLDER,
             "SORTED_" + file.filename
@@ -126,18 +131,16 @@ def upload():
 
         c = canvas.Canvas(output_pdf)
 
-        # ---------------------------------
+        # ----------------------------------------
         # SKU SORTING
-        # ---------------------------------
+        # ----------------------------------------
         for sku in sorted(grouped.keys()):
 
             items = grouped[sku]
 
-            print("WRITING SKU :", sku)
-
-            # ---------------------------------
+            # ----------------------------------------
             # LABEL PAGES
-            # ---------------------------------
+            # ----------------------------------------
             for img in items:
 
                 image_reader = ImageReader(
@@ -154,16 +157,16 @@ def upload():
 
                 c.showPage()
 
-            # ---------------------------------
+            # ----------------------------------------
             # SUMMARY PAGE
-            # ---------------------------------
+            # ----------------------------------------
             c.setFont(
                 "Helvetica-Bold",
-                30
+                28
             )
 
             c.drawString(
-                160,
+                170,
                 550,
                 f"SKU : {sku}"
             )
@@ -178,7 +181,7 @@ def upload():
 
         c.save()
 
-        print("PDF COMPLETE")
+        print("DONE")
 
         return send_file(
             output_pdf,
@@ -192,9 +195,9 @@ def upload():
         return f"ERROR : {str(e)}"
 
 
-# ---------------------------------
+# ----------------------------------------
 # RUN APP
-# ---------------------------------
+# ----------------------------------------
 if __name__ == "__main__":
 
     app.run(
