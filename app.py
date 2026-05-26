@@ -1,8 +1,8 @@
 from flask import Flask, render_template, request, send_file
 import fitz
 import io
-import re
 import os
+import re
 
 from collections import defaultdict
 
@@ -18,116 +18,87 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
 
-# =====================================================
-# SKU EXTRACT FUNCTION
-# =====================================================
+# -----------------------------------
+# CLEAN SKU DETECTION
+# -----------------------------------
 def extract_sku(text):
 
-    text = text.upper()
+    text = text.replace("\r", "\n")
 
-    lines = text.splitlines()
+    lines = text.split("\n")
 
-    clean_lines = []
+    blacklist = [
+        "SIZE",
+        "ORDER",
+        "TRACK",
+        "TRACKING",
+        "SHIP",
+        "DELIVERY",
+        "COD",
+        "PAID",
+        "QTY",
+        "TOTAL",
+        "AMOUNT",
+        "SELLER",
+        "RETURN",
+        "DATE"
+    ]
 
-    # -----------------------------------------
-    # CLEAN EMPTY LINES
-    # -----------------------------------------
-    for line in lines:
+    for i, line in enumerate(lines):
 
-        line = line.strip()
+        line_upper = line.upper().strip()
 
-        if line != "":
-            clean_lines.append(line)
+        # SKU line mila
+        if "SKU" in line_upper:
 
-    # -----------------------------------------
-    # FIND SKU
-    # -----------------------------------------
-    for i in range(len(clean_lines)):
+            # next 3 lines check karo
+            for j in range(1, 4):
 
-        line = clean_lines[i]
+                if i + j >= len(lines):
+                    continue
 
-        # EXACT SKU WORD
-        if line == "SKU":
+                possible = lines[i + j].strip().upper()
 
-            # NEXT FEW LINES CHECK
-            for j in range(i + 1, min(i + 6, len(clean_lines))):
+                possible = re.sub(r'[^A-Z0-9\-_ ]', '', possible)
 
-                sku = clean_lines[j].strip()
+                if len(possible) < 4:
+                    continue
 
-                # SPACE REMOVE
-                sku = sku.replace(" ", "_")
+                # blacklist ignore
+                bad = False
 
-                # -----------------------------------------
-                # IGNORE BAD WORDS
-                # -----------------------------------------
-                bad_words = [
-
-                    "FPL",
-                    "SURFACE",
-                    "TRACK",
-                    "TRACKING",
-                    "DELIVERY",
-                    "SHIPMENT",
-                    "ORDER",
-                    "ORDER ID",
-                    "AWB",
-                    "COD",
-                    "PREPAID",
-                    "XP",
-                    "ROAD",
-                    "ADDRESS",
-                    "INDIA",
-                    "MOBILE",
-                    "PHONE",
-                    "PIN"
-
-                ]
-
-                skip = False
-
-                for bad in bad_words:
-
-                    if bad in sku:
-                        skip = True
+                for word in blacklist:
+                    if word in possible:
+                        bad = True
                         break
 
-                if skip:
+                if bad:
                     continue
 
-                # -----------------------------------------
-                # IGNORE ONLY NUMBERS VERY LONG
-                # -----------------------------------------
-                if sku.isdigit() and len(sku) > 12:
+                # tracking id ignore
+                if re.fullmatch(r"[A-Z]{2,5}[0-9]{8,}", possible):
                     continue
 
-                # -----------------------------------------
-                # IGNORE VERY LONG VALUES
-                # -----------------------------------------
-                if len(sku) > 25:
+                # courier code ignore
+                if re.fullmatch(r"[A-Z]{2,5}\-[A-Z0-9]{1,5}", possible):
                     continue
 
-                # -----------------------------------------
-                # VALID SKU
-                # -----------------------------------------
-                if re.search(r"[A-Z0-9]", sku):
-
-                    return sku
+                return possible
 
     return "UNKNOWN"
 
 
-# =====================================================
-# HOME PAGE
-# =====================================================
+# -----------------------------------
+# HOME
+# -----------------------------------
 @app.route("/")
 def home():
-
     return render_template("index.html")
 
 
-# =====================================================
-# UPLOAD PDF
-# =====================================================
+# -----------------------------------
+# UPLOAD
+# -----------------------------------
 @app.route("/upload", methods=["POST"])
 def upload():
 
@@ -136,8 +107,7 @@ def upload():
         file = request.files["pdf"]
 
         if file.filename == "":
-
-            return "NO FILE SELECTED"
+            return "NO FILE"
 
         filepath = os.path.join(
             UPLOAD_FOLDER,
@@ -146,114 +116,73 @@ def upload():
 
         file.save(filepath)
 
-        # OPEN PDF
         doc = fitz.open(filepath)
 
         grouped = defaultdict(list)
 
-        total_pages = len(doc)
-
-        # =====================================================
-        # READ ALL PAGES
-        # =====================================================
-        for page_num in range(total_pages):
+        # -----------------------------------
+        # PAGE LOOP
+        # -----------------------------------
+        for page_num in range(len(doc)):
 
             page = doc.load_page(page_num)
 
-            # -----------------------------------------
-            # DIRECT TEXT EXTRACTION
-            # -----------------------------------------
+            # DIRECT TEXT
             text = page.get_text()
 
-            # -----------------------------------------
-            # FIND SKU
-            # -----------------------------------------
             sku = extract_sku(text)
 
+            print("PAGE", page_num + 1)
             print("FOUND SKU :", sku)
 
-            # -----------------------------------------
-            # SAVE PAGE PDF
-            # -----------------------------------------
-            single_pdf = fitz.open()
+            pdf_bytes = page.parent.convert_to_pdf()
 
-            single_pdf.insert_pdf(
-                doc,
-                from_page=page_num,
-                to_page=page_num
-            )
+            grouped[sku].append(page_num)
 
-            pdf_bytes = single_pdf.tobytes()
-
-            grouped[sku].append(pdf_bytes)
-
-            single_pdf.close()
-
-        # =====================================================
+        # -----------------------------------
         # OUTPUT PDF
-        # =====================================================
+        # -----------------------------------
         output_pdf = os.path.join(
             OUTPUT_FOLDER,
             "SORTED_" + file.filename
         )
 
-        final_pdf = fitz.open()
+        new_doc = fitz.open()
 
-        # SORT SKU WISE
+        # SORTING
         for sku in sorted(grouped.keys()):
 
-            items = grouped[sku]
+            pages = grouped[sku]
 
-            # -----------------------------------------
-            # ADD LABEL PAGES
-            # -----------------------------------------
-            for pdf_data in items:
+            # add pages
+            for pno in pages:
 
-                temp_pdf = fitz.open(
-                    stream=pdf_data,
-                    filetype="pdf"
+                new_doc.insert_pdf(
+                    doc,
+                    from_page=pno,
+                    to_page=pno
                 )
 
-                final_pdf.insert_pdf(temp_pdf)
+            # summary page
+            summary = fitz.open()
 
-                temp_pdf.close()
+            page = summary.new_page()
 
-            # -----------------------------------------
-            # SUMMARY PAGE
-            # -----------------------------------------
-            summary_pdf_path = os.path.join(
-                OUTPUT_FOLDER,
-                f"{sku}_summary.pdf"
+            page.insert_text(
+                (170, 300),
+                f"SKU : {sku}",
+                fontsize=28
             )
 
-            c = canvas.Canvas(summary_pdf_path)
-
-            c.setFont("Helvetica-Bold", 30)
-
-            c.drawString(
-                150,
-                550,
-                f"SKU : {sku}"
+            page.insert_text(
+                (170, 350),
+                f"TOTAL LABELS : {len(pages)}",
+                fontsize=24
             )
 
-            c.drawString(
-                120,
-                470,
-                f"TOTAL LABELS : {len(items)}"
-            )
+            new_doc.insert_pdf(summary)
 
-            c.save()
-
-            summary_doc = fitz.open(summary_pdf_path)
-
-            final_pdf.insert_pdf(summary_doc)
-
-            summary_doc.close()
-
-        # SAVE FINAL PDF
-        final_pdf.save(output_pdf)
-
-        final_pdf.close()
+        new_doc.save(output_pdf)
 
         return send_file(
             output_pdf,
@@ -265,9 +194,9 @@ def upload():
         return f"ERROR : {str(e)}"
 
 
-# =====================================================
-# RUN APP
-# =====================================================
+# -----------------------------------
+# RUN
+# -----------------------------------
 if __name__ == "__main__":
 
     app.run(
