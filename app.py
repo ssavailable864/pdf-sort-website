@@ -5,8 +5,6 @@ import os
 import re
 import requests
 
-from PIL import Image
-
 from collections import defaultdict
 
 app = Flask(__name__)
@@ -18,15 +16,22 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
 
-# ----------------------------------------
-# SKU FILTER
-# ----------------------------------------
+# -----------------------------------
+# CLEAN SKU
+# -----------------------------------
 def clean_sku(value):
 
     value = value.strip().upper()
 
+    value = re.sub(
+        r'[^A-Z0-9\-_]',
+        '',
+        value
+    )
+
     blacklist = [
         "SIZE",
+        "COLOR",
         "TRACK",
         "TRACKING",
         "ORDER",
@@ -37,64 +42,90 @@ def clean_sku(value):
         "TOTAL",
         "ITEM",
         "RETURN",
-        "DELIVERY"
+        "DELIVERY",
+        "PRODUCT",
+        "NAME",
+        "SKU"
     ]
 
-    if len(value) < 4:
+    # blacklist reject
+    if value in blacklist:
         return None
 
-    for b in blacklist:
-        if b in value:
-            return None
+    # too small reject
+    if len(value) < 5:
+        return None
 
-    # tracking ids ignore
+    # only letters reject
+    if value.isalpha():
+        return None
+
+    # only numbers reject
+    if value.isdigit():
+        return None
+
+    # tracking id reject
     if re.fullmatch(r"[A-Z]{2,5}[0-9]{8,}", value):
         return None
 
-    # courier codes ignore
+    # courier code reject
     if re.fullmatch(r"[A-Z]{2,5}\-[A-Z0-9]+", value):
+        return None
+
+    # must contain letters + numbers
+    has_letter = any(c.isalpha() for c in value)
+    has_number = any(c.isdigit() for c in value)
+
+    if not (has_letter and has_number):
         return None
 
     return value
 
 
-# ----------------------------------------
-# TEXT SKU
-# ----------------------------------------
+# -----------------------------------
+# FIND SKU FROM TEXT
+# -----------------------------------
 def extract_sku_from_text(text):
 
     lines = text.split("\n")
 
+    # pass 1 → after SKU word
     for i, line in enumerate(lines):
 
         line_upper = line.upper()
 
         if "SKU" in line_upper:
 
-            for j in range(1, 4):
+            for j in range(1, 5):
 
                 if i + j >= len(lines):
                     continue
 
                 candidate = lines[i + j]
 
-                candidate = re.sub(
-                    r"[^A-Z0-9\-_ ]",
-                    "",
-                    candidate.upper()
-                )
-
                 sku = clean_sku(candidate)
 
                 if sku:
                     return sku
 
+    # pass 2 → scan all lines
+    for line in lines:
+
+        words = line.split()
+
+        for word in words:
+
+            sku = clean_sku(word)
+
+            if sku:
+                return sku
+
     return None
 
 
-# ----------------------------------------
-# OCR SKU
-# ----------------------------------------
+# -----------------------------------
+# OCR API
+# -----------------------------------
 def extract_sku_ocr(img_data):
 
     try:
@@ -120,9 +151,12 @@ def extract_sku_ocr(img_data):
         text = ""
 
         if result.get("ParsedResults"):
+
             text = result["ParsedResults"][0]["ParsedText"]
 
-        return extract_sku_from_text(text)
+        sku = extract_sku_from_text(text)
+
+        return sku
 
     except Exception as e:
 
@@ -131,17 +165,18 @@ def extract_sku_ocr(img_data):
         return None
 
 
-# ----------------------------------------
+# -----------------------------------
 # HOME
-# ----------------------------------------
+# -----------------------------------
 @app.route("/")
 def home():
+
     return render_template("index.html")
 
 
-# ----------------------------------------
+# -----------------------------------
 # UPLOAD
-# ----------------------------------------
+# -----------------------------------
 @app.route("/upload", methods=["POST"])
 def upload():
 
@@ -150,7 +185,7 @@ def upload():
         file = request.files["pdf"]
 
         if file.filename == "":
-            return "NO FILE"
+            return "NO FILE SELECTED"
 
         filepath = os.path.join(
             UPLOAD_FOLDER,
@@ -163,41 +198,48 @@ def upload():
 
         grouped = defaultdict(list)
 
-        # ----------------------------------------
-        # PAGE LOOP
-        # ----------------------------------------
-        for page_num in range(len(doc)):
+        total_pages = len(doc)
+
+        # -----------------------------------
+        # PROCESS PAGES
+        # -----------------------------------
+        for page_num in range(total_pages):
 
             page = doc.load_page(page_num)
 
-            # FAST TEXT TRY
+            # -----------------------------
+            # FAST TEXT EXTRACTION
+            # -----------------------------
             text = page.get_text()
 
             sku = extract_sku_from_text(text)
 
-            # ----------------------------------------
+            # -----------------------------
             # OCR FALLBACK
-            # ----------------------------------------
+            # -----------------------------
             if not sku:
 
-                pix = page.get_pixmap(dpi=200)
+                pix = page.get_pixmap(dpi=180)
 
                 img_data = pix.tobytes("png")
 
                 sku = extract_sku_ocr(img_data)
 
-            # still not found
+            # -----------------------------
+            # FINAL FALLBACK
+            # -----------------------------
             if not sku:
                 sku = "UNKNOWN"
 
-            print("PAGE :", page_num + 1)
-            print("SKU :", sku)
+            print(
+                f"PAGE {page_num + 1} -> {sku}"
+            )
 
             grouped[sku].append(page_num)
 
-        # ----------------------------------------
-        # OUTPUT
-        # ----------------------------------------
+        # -----------------------------------
+        # CREATE SORTED PDF
+        # -----------------------------------
         output_pdf = os.path.join(
             OUTPUT_FOLDER,
             "SORTED_" + file.filename
@@ -205,11 +247,12 @@ def upload():
 
         new_doc = fitz.open()
 
+        # sort sku wise
         for sku in sorted(grouped.keys()):
 
             pages = grouped[sku]
 
-            # insert pages
+            # insert actual pages
             for pno in pages:
 
                 new_doc.insert_pdf(
@@ -221,18 +264,18 @@ def upload():
             # summary page
             summary = fitz.open()
 
-            spage = summary.new_page()
+            s_page = summary.new_page()
 
-            spage.insert_text(
+            s_page.insert_text(
                 (170, 300),
                 f"SKU : {sku}",
                 fontsize=28
             )
 
-            spage.insert_text(
+            s_page.insert_text(
                 (170, 350),
                 f"TOTAL LABELS : {len(pages)}",
-                fontsize=24
+                fontsize=22
             )
 
             new_doc.insert_pdf(summary)
@@ -249,9 +292,9 @@ def upload():
         return f"ERROR : {str(e)}"
 
 
-# ----------------------------------------
+# -----------------------------------
 # RUN
-# ----------------------------------------
+# -----------------------------------
 if __name__ == "__main__":
 
     app.run(
