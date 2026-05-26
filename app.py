@@ -1,13 +1,13 @@
 from flask import Flask, render_template, request, send_file
 import fitz
+from PIL import Image as PILImage
 import io
 import re
 import os
-
 from collections import defaultdict
-
 from reportlab.pdfgen import canvas
 from reportlab.lib.utils import ImageReader
+import requests
 
 app = Flask(__name__)
 
@@ -18,72 +18,44 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
 
-# -------------------------------------------------
-# FAST SKU DETECTION
-# -------------------------------------------------
+# -----------------------------
+# SKU FIND FUNCTION
+# -----------------------------
 def extract_sku(text):
 
     text = text.upper()
 
     patterns = [
-
         r"SKU\s*[:\-]?\s*([A-Z0-9_-]+)",
-
         r"SELLER SKU\s*[:\-]?\s*([A-Z0-9_-]+)",
-
         r"SKU\s*\n\s*([A-Z0-9_-]+)"
-
-    ]
-
-    blocked = [
-
-        "SIZE",
-        "COLOR",
-        "FREE",
-        "QTY",
-        "NO24A",
-        "NA"
-
     ]
 
     for pattern in patterns:
 
-        matches = re.findall(pattern, text)
+        match = re.search(pattern, text)
 
-        for sku in matches:
+        if match:
 
-            sku = sku.strip()
+            sku = match.group(1).strip()
 
-            # BLOCK WRONG VALUES
-            if sku in blocked:
-                continue
-
-            # BLOCK TRACKING IDS
-            if sku.startswith("SF"):
-                continue
-
-            # BLOCK LONG IDS
-            if len(sku) > 25:
-                continue
-
-            if len(sku) >= 4:
+            if len(sku) > 2:
                 return sku
 
-    return "UNKNOWN"
+    return "ZZZ"
 
 
-# -------------------------------------------------
+# -----------------------------
 # HOME PAGE
-# -------------------------------------------------
+# -----------------------------
 @app.route("/")
 def home():
-
     return render_template("index.html")
 
 
-# -------------------------------------------------
+# -----------------------------
 # UPLOAD PDF
-# -------------------------------------------------
+# -----------------------------
 @app.route("/upload", methods=["POST"])
 def upload():
 
@@ -107,48 +79,79 @@ def upload():
 
         total_pages = len(doc)
 
-        # -----------------------------------------
-        # READ ALL PAGES FAST
-        # -----------------------------------------
+        # -----------------------------
+        # READ EACH PAGE
+        # -----------------------------
         for page_num in range(total_pages):
 
             page = doc.load_page(page_num)
 
-            # FAST DIRECT TEXT
-            text = page.get_text()
+            pix = page.get_pixmap(dpi=200)
 
+            img_data = pix.tobytes("png")
+
+            image = PILImage.open(io.BytesIO(img_data))
+
+            # -----------------------------
+            # OCR SPACE API
+            # -----------------------------
+            try:
+
+                response = requests.post(
+                    "https://api.ocr.space/parse/image",
+                    files={
+                        "filename": (
+                            "page.png",
+                            img_data,
+                            "image/png"
+                        )
+                    },
+                    data={
+                        "apikey": "helloworld",
+                        "language": "eng"
+                    },
+                    timeout=60
+                )
+
+                result = response.json()
+
+                text = ""
+
+                if result.get("ParsedResults"):
+
+                    text = result["ParsedResults"][0]["ParsedText"]
+
+                else:
+                    text = ""
+
+            except Exception as e:
+
+                print("OCR ERROR :", e)
+
+                text = ""
+
+            # -----------------------------
             # FIND SKU
+            # -----------------------------
             sku = extract_sku(text)
 
-            print("PAGE :", page_num + 1)
             print("FOUND SKU :", sku)
-
-            # SMALLER IMAGE SIZE
-            pix = page.get_pixmap(
-                dpi=120
-            )
-
-            img_data = pix.tobytes("jpeg")
 
             grouped[sku].append(img_data)
 
-        # -----------------------------------------
+        # -----------------------------
         # OUTPUT PDF
-        # -----------------------------------------
+        # -----------------------------
         output_pdf = os.path.join(
             OUTPUT_FOLDER,
             "SORTED_" + file.filename
         )
 
-        # PDF COMPRESSION
-        c = canvas.Canvas(
-            output_pdf,
-            pageCompression=1
-        )
+        c = canvas.Canvas(output_pdf)
 
-        # -----------------------------------------
+        # -----------------------------
         # SORT SKU WISE
-        # -----------------------------------------
+        # -----------------------------
         for sku in sorted(grouped.keys()):
 
             items = grouped[sku]
@@ -156,9 +159,7 @@ def upload():
             # LABEL PAGES
             for img in items:
 
-                image_reader = ImageReader(
-                    io.BytesIO(img)
-                )
+                image_reader = ImageReader(io.BytesIO(img))
 
                 c.drawImage(
                     image_reader,
@@ -170,23 +171,20 @@ def upload():
 
                 c.showPage()
 
-            # ---------------------------------
+            # -----------------------------
             # SUMMARY PAGE
-            # ---------------------------------
-            c.setFont(
-                "Helvetica-Bold",
-                28
-            )
+            # -----------------------------
+            c.setFont("Helvetica-Bold", 28)
 
             c.drawString(
-                160,
+                170,
                 550,
                 f"SKU : {sku}"
             )
 
             c.drawString(
                 120,
-                470,
+                480,
                 f"TOTAL LABELS : {len(items)}"
             )
 
@@ -204,11 +202,10 @@ def upload():
         return f"ERROR : {str(e)}"
 
 
-# -------------------------------------------------
+# -----------------------------
 # RUN APP
-# -------------------------------------------------
+# -----------------------------
 if __name__ == "__main__":
-
     app.run(
         host="0.0.0.0",
         port=10000,
