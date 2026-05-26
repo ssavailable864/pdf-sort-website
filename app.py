@@ -17,36 +17,32 @@ OUTPUT_FOLDER = "output"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
-
 # -----------------------------
-# SKU FIND FUNCTION
+# SKU EXTRACTION (FIXED)
 # -----------------------------
 def extract_sku(text):
+    if not text:
+        return None
 
     text = text.upper()
+    text = re.sub(r'\s+', ' ', text)
 
     patterns = [
-        r"SKU\s*[:\-]?\s*([A-Z0-9_-]+)",
-        r"SELLER SKU\s*[:\-]?\s*([A-Z0-9_-]+)",
-        r"SKU\s*\n\s*([A-Z0-9_-]+)"
+        r"SKU\s*[:\-]?\s*([A-Z0-9_-]{2,})",
+        r"SELLER\s*SKU\s*[:\-]?\s*([A-Z0-9_-]{2,})",
+        r"SKU\s*NO\s*[:\-]?\s*([A-Z0-9_-]{2,})"
     ]
 
     for pattern in patterns:
-
         match = re.search(pattern, text)
-
         if match:
+            return match.group(1).strip()
 
-            sku = match.group(1).strip()
-
-            if len(sku) > 2:
-                return sku
-
-    return "ZZZ"
+    return None
 
 
 # -----------------------------
-# HOME PAGE
+# HOME
 # -----------------------------
 @app.route("/")
 def home():
@@ -54,88 +50,74 @@ def home():
 
 
 # -----------------------------
-# UPLOAD PDF
+# UPLOAD + PROCESS
 # -----------------------------
 @app.route("/upload", methods=["POST"])
 def upload():
-
     try:
-
         file = request.files["pdf"]
 
         if file.filename == "":
             return "NO FILE SELECTED"
 
-        filepath = os.path.join(
-            UPLOAD_FOLDER,
-            file.filename
-        )
-
+        filepath = os.path.join(UPLOAD_FOLDER, file.filename)
         file.save(filepath)
 
         doc = fitz.open(filepath)
 
-        grouped = defaultdict(list)
+        grouped = {}   # FIXED (no defaultdict confusion)
 
         total_pages = len(doc)
 
         # -----------------------------
-        # READ EACH PAGE
+        # PROCESS PAGES
         # -----------------------------
         for page_num in range(total_pages):
-
             page = doc.load_page(page_num)
 
             pix = page.get_pixmap(dpi=200)
-
             img_data = pix.tobytes("png")
 
-            image = PILImage.open(io.BytesIO(img_data))
-
             # -----------------------------
-            # OCR SPACE API
+            # OCR REQUEST
             # -----------------------------
             try:
-
                 response = requests.post(
                     "https://api.ocr.space/parse/image",
                     files={
-                        "filename": (
-                            "page.png",
-                            img_data,
-                            "image/png"
-                        )
+                        "filename": ("page.png", img_data, "image/png")
                     },
                     data={
                         "apikey": "helloworld",
-                        "language": "eng"
+                        "language": "eng",
+                        "isOverlayRequired": False
                     },
                     timeout=60
                 )
 
                 result = response.json()
 
-                text = ""
-
                 if result.get("ParsedResults"):
-
                     text = result["ParsedResults"][0]["ParsedText"]
-
                 else:
                     text = ""
 
             except Exception as e:
-
-                print("OCR ERROR :", e)
-
+                print("OCR ERROR:", e)
                 text = ""
 
             # -----------------------------
-            # FIND SKU
+            # SKU DETECT
             # -----------------------------
             sku = extract_sku(text)
 
-            print("FOUND SKU :", sku)
+            if not sku:
+                sku = "UNKNOWN"
+
+            print("FOUND SKU:", sku)
+
+            if sku not in grouped:
+                grouped[sku] = []
 
             grouped[sku].append(img_data)
 
@@ -150,15 +132,16 @@ def upload():
         c = canvas.Canvas(output_pdf)
 
         # -----------------------------
-        # SORT SKU WISE
+        # SORT (UNKNOWN LAST)
         # -----------------------------
-        for sku in sorted(grouped.keys()):
+        for sku in sorted(grouped.keys(), key=lambda x: (x == "UNKNOWN", x)):
 
             items = grouped[sku]
 
+            # -----------------------------
             # LABEL PAGES
+            # -----------------------------
             for img in items:
-
                 image_reader = ImageReader(io.BytesIO(img))
 
                 c.drawImage(
@@ -175,30 +158,18 @@ def upload():
             # SUMMARY PAGE
             # -----------------------------
             c.setFont("Helvetica-Bold", 28)
+            c.drawString(170, 550, f"SKU : {sku}")
 
-            c.drawString(
-                170,
-                550,
-                f"SKU : {sku}"
-            )
-
-            c.drawString(
-                120,
-                480,
-                f"TOTAL LABELS : {len(items)}"
-            )
+            c.setFont("Helvetica", 20)
+            c.drawString(150, 480, f"TOTAL LABELS : {len(items)}")
 
             c.showPage()
 
         c.save()
 
-        return send_file(
-            output_pdf,
-            as_attachment=True
-        )
+        return send_file(output_pdf, as_attachment=True)
 
     except Exception as e:
-
         return f"ERROR : {str(e)}"
 
 
@@ -206,8 +177,4 @@ def upload():
 # RUN APP
 # -----------------------------
 if __name__ == "__main__":
-    app.run(
-        host="0.0.0.0",
-        port=10000,
-        debug=False
-    )
+    app.run(host="0.0.0.0", port=10000, debug=False)
