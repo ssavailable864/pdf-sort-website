@@ -102,7 +102,7 @@ def upload():
             page = doc.load_page(page_num)
 
             # FAST IMAGE
-            pix = page.get_pixmap(dpi=70)
+            pix = page.get_pixmap(dpi=150)
 
             img_data = pix.tobytes("png")
 
@@ -151,7 +151,8 @@ def upload():
             # FIND SKU
             # =========================================
 
-            sku = extract_sku(text)
+            print(text)
+            print("FOUND SKU :", sku)
 
             grouped[sku].append(img_data)
 
