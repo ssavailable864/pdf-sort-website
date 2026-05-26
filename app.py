@@ -86,7 +86,7 @@ def upload():
             page = doc.load_page(page_num)
 
             # LOWER DPI FOR FASTER SPEED
-            pix = page.get_pixmap(dpi=120)
+            pix = page.get_pixmap(dpi=70)
 
             img_data = pix.tobytes("png")
 
@@ -112,7 +112,7 @@ def upload():
                         "language": "eng",
                         "OCREngine": "2"
                     },
-                    timeout=60
+                    timeout=20
                 )
 
                 result = response.json()
@@ -178,22 +178,7 @@ def upload():
                 c.showPage()
 
             # SUMMARY PAGE
-            c.setFont("Helvetica-Bold", 24)
-
-            c.drawString(
-                150,
-                500,
-                f"SKU : {sku}"
-            )
-
-            c.drawString(
-                150,
-                450,
-                f"TOTAL LABELS : {len(items)}"
-            )
-
-            c.showPage()
-
+            
         # SAVE PDF
         c.save()
 
