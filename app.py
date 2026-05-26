@@ -31,6 +31,10 @@ def extract_sku(text):
 
     patterns = [
 
+        r'FNSKU\s*[:\-]?\s*([A-Z0-9_-]+)',
+
+        r'ASIN\s*[:\-]?\s*([A-Z0-9_-]+)',
+
         r'SKU\s*[:\-]?\s*([A-Z0-9_-]+)',
 
         r'Seller SKU\s*[:\-]?\s*([A-Z0-9_-]+)',
@@ -98,8 +102,8 @@ def upload():
 
                 page = doc.load_page(page_num)
 
-                # HIGH QUALITY IMAGE
-                pix = page.get_pixmap(dpi=150)
+                # BETTER QUALITY
+                pix = page.get_pixmap(dpi=200)
 
                 img_data = pix.tobytes("png")
 
@@ -121,7 +125,8 @@ def upload():
 
                     data={
                         "apikey": "helloworld",
-                        "language": "eng"
+                        "language": "eng",
+                        "OCREngine": 2
                     }
 
                 )
@@ -133,6 +138,13 @@ def upload():
                 if result.get("ParsedResults"):
 
                     text = result["ParsedResults"][0]["ParsedText"]
+
+                # =====================================
+                # DEBUG OCR TEXT
+                # =====================================
+
+                print("========== OCR TEXT ==========")
+                print(text)
 
                 # =====================================
                 # SKU FIND
@@ -165,7 +177,7 @@ def upload():
         c = canvas.Canvas(output_pdf)
 
         # =====================================
-        # SKU SORTING
+        # SORTING
         # =====================================
 
         for sku in sorted(grouped.keys()):
