@@ -1,11 +1,8 @@
 from flask import Flask, render_template, request, send_file
 import fitz
-import io
 import os
 import re
 import requests
-
-from PIL import Image
 
 from collections import defaultdict
 
@@ -19,17 +16,23 @@ os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
 
 # -----------------------------------
-# CLEAN SKU
+# FINAL SKU DETECTION
 # -----------------------------------
-def clean_sku(value):
+def extract_sku(text):
 
-    value = value.strip().upper()
+    text = text.upper()
 
-    value = re.sub(
-        r'[^A-Z0-9\-_]',
-        '',
-        value
-    )
+    patterns = [
+
+        r"SELLER SKU\s*[:\-]?\s*([A-Z0-9\-_]+)",
+
+        r"SKU CODE\s*[:\-]?\s*([A-Z0-9\-_]+)",
+
+        r"SKU\s*[:\-]?\s*([A-Z0-9\-_]+)",
+
+        r"SKU\s*\n\s*([A-Z0-9\-_]+)"
+
+    ]
 
     blacklist = [
         "SIZE",
@@ -37,88 +40,80 @@ def clean_sku(value):
         "TRACK",
         "TRACKING",
         "ORDER",
-        "SHIP",
+        "ITEM",
+        "TOTAL",
+        "SKU",
+        "QTY",
         "COD",
         "PAID",
-        "QTY",
-        "TOTAL",
-        "ITEM",
-        "RETURN",
-        "DELIVERY",
-        "PRODUCT",
         "NAME",
-        "SKU"
+        "PRODUCT"
     ]
 
-    if value in blacklist:
-        return None
+    for pattern in patterns:
 
-    if len(value) < 5:
-        return None
+        matches = re.findall(
+            pattern,
+            text,
+            re.IGNORECASE
+        )
 
-    if value.isalpha():
-        return None
+        for m in matches:
 
-    if value.isdigit():
-        return None
+            sku = m.strip().upper()
 
-    # tracking reject
-    if re.fullmatch(r"[A-Z]{2,5}[0-9]{8,}", value):
-        return None
+            # clean symbols
+            sku = re.sub(
+                r'[^A-Z0-9\-_]',
+                '',
+                sku
+            )
 
-    # courier reject
-    if re.fullmatch(r"[A-Z]{2,5}\-[A-Z0-9]+", value):
-        return None
+            # blacklist reject
+            if sku in blacklist:
+                continue
 
-    return value
+            # small reject
+            if len(sku) < 5:
+                continue
+
+            # only numbers reject
+            if sku.isdigit():
+                continue
+
+            # tracking reject
+            if re.fullmatch(r"[A-Z]{2,5}[0-9]{8,}", sku):
+                continue
+
+            # courier reject
+            if re.fullmatch(r"[A-Z]{2,5}\-[A-Z0-9]+", sku):
+                continue
+
+            return sku
+
+    return "UNKNOWN"
 
 
 # -----------------------------------
-# EXTRACT SKU
+# OCR API
 # -----------------------------------
-def extract_sku(text):
-
-    lines = text.split("\n")
-
-    for line in lines:
-
-        words = line.split()
-
-        for word in words:
-
-            sku = clean_sku(word)
-
-            if sku:
-                return sku
-
-    return None
-
-
-# -----------------------------------
-# OCR ONLY SKU AREA
-# -----------------------------------
-def ocr_sku_area(page):
-
-    # -----------------------------------
-    # CROP AREA
-    # LEFT, TOP, RIGHT, BOTTOM
-    # -----------------------------------
-
-    rect = fitz.Rect(
-        50,
-        150,
-        400,
-        450
-    )
-
-    pix = page.get_pixmap(
-        matrix=fitz.Matrix(3, 3),
-        clip=rect
-    )
-
-    img_data = pix.tobytes("png")
+def ocr_page(page):
 
     try:
+
+        rect = fitz.Rect(
+            40,
+            120,
+            420,
+            500
+        )
+
+        pix = page.get_pixmap(
+            matrix=fitz.Matrix(3, 3),
+            clip=rect
+        )
+
+        img_data = pix.tobytes("png")
 
         response = requests.post(
             "https://api.ocr.space/parse/image",
@@ -147,15 +142,13 @@ def ocr_sku_area(page):
         print("OCR TEXT:")
         print(text)
 
-        sku = extract_sku(text)
-
-        return sku
+        return extract_sku(text)
 
     except Exception as e:
 
         print("OCR ERROR :", e)
 
-        return None
+        return "UNKNOWN"
 
 
 # -----------------------------------
@@ -191,25 +184,28 @@ def upload():
 
         grouped = defaultdict(list)
 
+        total_pages = len(doc)
+
         # -----------------------------------
-        # PAGE LOOP
+        # PROCESS EACH PAGE
         # -----------------------------------
-        for page_num in range(len(doc)):
+        for page_num in range(total_pages):
 
             page = doc.load_page(page_num)
 
-            # FAST TEXT TRY
+            # -----------------------------------
+            # FAST TEXT EXTRACTION
+            # -----------------------------------
             text = page.get_text()
 
             sku = extract_sku(text)
 
-            # OCR fallback
-            if not sku:
+            # -----------------------------------
+            # OCR FALLBACK
+            # -----------------------------------
+            if sku == "UNKNOWN":
 
-                sku = ocr_sku_area(page)
-
-            if not sku:
-                sku = "UNKNOWN"
+                sku = ocr_page(page)
 
             print(
                 f"PAGE {page_num + 1} -> {sku}"
@@ -218,7 +214,7 @@ def upload():
             grouped[sku].append(page_num)
 
         # -----------------------------------
-        # OUTPUT PDF
+        # CREATE OUTPUT PDF
         # -----------------------------------
         output_pdf = os.path.join(
             OUTPUT_FOLDER,
@@ -227,11 +223,14 @@ def upload():
 
         new_doc = fitz.open()
 
+        # -----------------------------------
+        # SORT SKU WISE
+        # -----------------------------------
         for sku in sorted(grouped.keys()):
 
             pages = grouped[sku]
 
-            # actual pages
+            # original pages
             for pno in pages:
 
                 new_doc.insert_pdf(
@@ -246,13 +245,13 @@ def upload():
             s_page = summary.new_page()
 
             s_page.insert_text(
-                (170, 300),
+                (160, 300),
                 f"SKU : {sku}",
                 fontsize=28
             )
 
             s_page.insert_text(
-                (170, 350),
+                (160, 350),
                 f"TOTAL LABELS : {len(pages)}",
                 fontsize=22
             )
