@@ -4,7 +4,6 @@ import requests
 import io
 import re
 import os
-import time
 
 from collections import defaultdict
 
@@ -20,27 +19,40 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
 # =========================================
-# SKU FIND
+# SKU FIND FUNCTION
 # =========================================
 
 def extract_sku(text):
 
+    text = text.upper()
+
     patterns = [
-        r'SKU\s*[:\-]?\s*([A-Z0-9_-]+)',
-        r'Seller SKU\s*[:\-]?\s*([A-Z0-9_-]+)',
+
+        r'SKU\s*[:\-]?\s*([A-Z0-9\-_]+)',
+
+        r'SELLER SKU\s*[:\-]?\s*([A-Z0-9\-_]+)',
+
+        r'FSN\s*[:\-]?\s*([A-Z0-9\-_]+)',
+
+        r'([A-Z]{2,}[0-9]{2,}[A-Z0-9\-_]*)'
     ]
 
     for pattern in patterns:
 
-        match = re.search(pattern, text, re.I)
+        match = re.search(pattern, text)
 
         if match:
-            return match.group(1)
+
+            sku = match.group(1).strip()
+
+            if len(sku) > 2:
+
+                return sku
 
     return "ZZZ"
 
 # =========================================
-# HOME
+# HOME PAGE
 # =========================================
 
 @app.route("/")
@@ -49,7 +61,7 @@ def home():
     return render_template("index.html")
 
 # =========================================
-# UPLOAD
+# UPLOAD + SORT
 # =========================================
 
 @app.route("/upload", methods=["POST"])
@@ -59,6 +71,9 @@ def upload():
 
         file = request.files["pdf"]
 
+        if file.filename == "":
+            return "NO FILE SELECTED"
+
         filepath = os.path.join(
             UPLOAD_FOLDER,
             file.filename
@@ -66,21 +81,27 @@ def upload():
 
         file.save(filepath)
 
+        # =========================================
+        # OPEN PDF
+        # =========================================
+
         doc = fitz.open(filepath)
 
         total_pages = len(doc)
 
         grouped = defaultdict(list)
 
+        print("PROCESS STARTED")
+
         # =========================================
-        # PROCESS PAGES
+        # PAGE LOOP
         # =========================================
 
         for page_num in range(total_pages):
 
             page = doc.load_page(page_num)
 
-            # FAST RENDER
+            # FAST IMAGE
             pix = page.get_pixmap(dpi=70)
 
             img_data = pix.tobytes("png")
@@ -120,7 +141,9 @@ def upload():
 
                     text = ""
 
-            except:
+            except Exception as e:
+
+                print("OCR ERROR :", e)
 
                 text = ""
 
@@ -132,12 +155,18 @@ def upload():
 
             grouped[sku].append(img_data)
 
+            # =========================================
             # TERMINAL PROGRESS
-            percent = int(((page_num + 1) / total_pages) * 100)
+            # =========================================
+
+            percent = int(
+                ((page_num + 1) / total_pages) * 100
+            )
 
             print(
                 f"PROCESSING : {percent}% "
-                f"({page_num + 1}/{total_pages})"
+                f"({page_num + 1}/{total_pages}) "
+                f"SKU : {sku}"
             )
 
         # =========================================
@@ -151,19 +180,25 @@ def upload():
 
         c = canvas.Canvas(output_pdf)
 
-        # =========================================
-        # SORT SKU
-        # =========================================
-
         sorted_skus = sorted(grouped.keys())
+
+        # =========================================
+        # SORTING PDF
+        # =========================================
 
         for sku in sorted_skus:
 
             items = grouped[sku]
 
+            # =========================================
+            # LABEL PAGES
+            # =========================================
+
             for img in items:
 
-                image_reader = ImageReader(io.BytesIO(img))
+                image_reader = ImageReader(
+                    io.BytesIO(img)
+                )
 
                 c.drawImage(
                     image_reader,
@@ -175,12 +210,39 @@ def upload():
 
                 c.showPage()
 
+            # =========================================
+            # SUMMARY PAGE
+            # =========================================
+
+            c.setFont(
+                "Helvetica-Bold",
+                28
+            )
+
+            c.drawString(
+                120,
+                500,
+                f"SKU : {sku}"
+            )
+
+            c.drawString(
+                120,
+                440,
+                f"TOTAL LABELS : {len(items)}"
+            )
+
+            c.showPage()
+
+        # =========================================
+        # SAVE PDF
+        # =========================================
+
         c.save()
 
         print("DONE SUCCESSFULLY")
 
         # =========================================
-        # RETURN PDF
+        # DOWNLOAD
         # =========================================
 
         return send_file(
@@ -189,6 +251,8 @@ def upload():
         )
 
     except Exception as e:
+
+        print("MAIN ERROR :", e)
 
         return f"ERROR : {str(e)}"
 
