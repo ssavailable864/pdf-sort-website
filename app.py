@@ -1,6 +1,7 @@
 from flask import Flask, render_template, request, send_file
 import fitz
 import requests
+from PIL import Image as PILImage
 import io
 import re
 import os
@@ -12,258 +13,224 @@ from reportlab.lib.utils import ImageReader
 
 app = Flask(__name__)
 
+# =========================
+# FOLDERS
+# =========================
+
 UPLOAD_FOLDER = "uploads"
 OUTPUT_FOLDER = "output"
 
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
-# =========================================
-# SKU FIND FUNCTION
-# =========================================
+# =========================
+# SKU FIND
+# =========================
 
 def extract_sku(text):
 
-    text = text.upper()
-
     patterns = [
 
-        r'SKU\s*[:\-]?\s*([A-Z0-9\-_]+)',
+        r'SKU\s*[:\-]?\s*([A-Z0-9_-]+)',
+        r'Seller SKU\s*[:\-]?\s*([A-Z0-9_-]+)',
 
-        r'SELLER SKU\s*[:\-]?\s*([A-Z0-9\-_]+)',
-
-        r'FSN\s*[:\-]?\s*([A-Z0-9\-_]+)',
-
-        r'([A-Z]{2,}[0-9]{2,}[A-Z0-9\-_]*)'
     ]
 
     for pattern in patterns:
 
-        match = re.search(pattern, text)
+        match = re.search(pattern, text, re.I)
 
         if match:
-
-            sku = match.group(1).strip()
-
-            if len(sku) > 2:
-
-                return sku
+            return match.group(1)
 
     return "ZZZ"
 
-# =========================================
-# HOME PAGE
-# =========================================
+# =========================
+# HOME
+# =========================
 
 @app.route("/")
 def home():
 
     return render_template("index.html")
 
-# =========================================
+# =========================
 # UPLOAD + SORT
-# =========================================
+# =========================
 
 @app.route("/upload", methods=["POST"])
 def upload():
 
-    try:
+    file = request.files["pdf"]
 
-        file = request.files["pdf"]
+    if not file:
+        return "No File"
 
-        if file.filename == "":
-            return "NO FILE SELECTED"
+    filepath = os.path.join(
+        UPLOAD_FOLDER,
+        file.filename
+    )
 
-        filepath = os.path.join(
-            UPLOAD_FOLDER,
-            file.filename
+    file.save(filepath)
+
+    # =========================
+    # OPEN PDF
+    # =========================
+
+    doc = fitz.open(filepath)
+
+    grouped = defaultdict(list)
+
+    total_pages = len(doc)
+
+    # =========================
+    # OCR PROCESS
+    # =========================
+
+    for page_num in range(total_pages):
+
+        page = doc.load_page(page_num)
+
+        # HIGHER DPI
+        pix = page.get_pixmap(dpi=150)
+
+        img_data = pix.tobytes("png")
+
+        image = PILImage.open(io.BytesIO(img_data))
+
+        # =========================
+        # OCR API
+        # =========================
+
+        response = requests.post(
+
+            "https://api.ocr.space/parse/image",
+
+            files={
+                "filename": img_data
+            },
+
+            data={
+                "apikey": "helloworld",
+                "language": "eng"
+            }
+
         )
 
-        file.save(filepath)
+        result = response.json()
 
-        # =========================================
-        # OPEN PDF
-        # =========================================
+        text = ""
 
-        doc = fitz.open(filepath)
+        if result.get("ParsedResults"):
 
-        total_pages = len(doc)
+            text = result["ParsedResults"][0]["ParsedText"]
 
-        grouped = defaultdict(list)
+        # =========================
+        # SKU
+        # =========================
 
-        print("PROCESS STARTED")
+        sku = extract_sku(text)
 
-        # =========================================
-        # PAGE LOOP
-        # =========================================
+        print("FOUND SKU :", sku)
 
-        for page_num in range(total_pages):
+        grouped[sku].append(img_data)
 
-            page = doc.load_page(page_num)
+    # =========================
+    # OUTPUT PDF
+    # =========================
 
-            # FAST IMAGE
-            pix = page.get_pixmap(dpi=150)
+    output_pdf = os.path.join(
 
-            img_data = pix.tobytes("png")
+        OUTPUT_FOLDER,
 
-            # =========================================
-            # OCR API
-            # =========================================
+        "SORTED_" + file.filename
 
-            try:
+    )
 
-                response = requests.post(
-                    "https://api.ocr.space/parse/image",
-                    files={
-                        "filename": (
-                            "page.png",
-                            img_data,
-                            "image/png"
-                        )
-                    },
-                    data={
-                        "apikey": "helloworld",
-                        "language": "eng",
-                        "OCREngine": "2"
-                    },
-                    timeout=20
-                )
+    c = canvas.Canvas(output_pdf)
 
-                result = response.json()
+    # =========================
+    # SORTING
+    # =========================
 
-                text = ""
+    for sku in sorted(grouped.keys()):
 
-                if result.get("ParsedResults"):
+        items = grouped[sku]
 
-                    text = result["ParsedResults"][0]["ParsedText"]
+        # LABEL PAGES
+        for img in items:
 
-                else:
-
-                    text = ""
-
-            except Exception as e:
-
-                print("OCR ERROR :", e)
-
-                text = ""
-
-            # =========================================
-            # FIND SKU
-            # =========================================
-
-            print(text)
-            print("FOUND SKU :", sku)
-
-            grouped[sku].append(img_data)
-
-            # =========================================
-            # TERMINAL PROGRESS
-            # =========================================
-
-            percent = int(
-                ((page_num + 1) / total_pages) * 100
+            image_reader = ImageReader(
+                io.BytesIO(img)
             )
 
-            print(
-                f"PROCESSING : {percent}% "
-                f"({page_num + 1}/{total_pages}) "
-                f"SKU : {sku}"
-            )
+            c.drawImage(
 
-        # =========================================
-        # OUTPUT PDF
-        # =========================================
+                image_reader,
 
-        output_pdf = os.path.join(
-            OUTPUT_FOLDER,
-            "SORTED_" + file.filename
-        )
+                0,
+                0,
 
-        c = canvas.Canvas(output_pdf)
+                width=595,
+                height=842
 
-        sorted_skus = sorted(grouped.keys())
-
-        # =========================================
-        # SORTING PDF
-        # =========================================
-
-        for sku in sorted_skus:
-
-            items = grouped[sku]
-
-            # =========================================
-            # LABEL PAGES
-            # =========================================
-
-            for img in items:
-
-                image_reader = ImageReader(
-                    io.BytesIO(img)
-                )
-
-                c.drawImage(
-                    image_reader,
-                    0,
-                    0,
-                    width=595,
-                    height=842
-                )
-
-                c.showPage()
-
-            # =========================================
-            # SUMMARY PAGE
-            # =========================================
-
-            c.setFont(
-                "Helvetica-Bold",
-                28
-            )
-
-            c.drawString(
-                120,
-                500,
-                f"SKU : {sku}"
-            )
-
-            c.drawString(
-                120,
-                440,
-                f"TOTAL LABELS : {len(items)}"
             )
 
             c.showPage()
 
-        # =========================================
-        # SAVE PDF
-        # =========================================
+        # =========================
+        # SUMMARY PAGE
+        # =========================
 
-        c.save()
-
-        print("DONE SUCCESSFULLY")
-
-        # =========================================
-        # DOWNLOAD
-        # =========================================
-
-        return send_file(
-            output_pdf,
-            as_attachment=True
+        c.setFont(
+            "Helvetica-Bold",
+            24
         )
 
-    except Exception as e:
+        c.drawString(
+            150,
+            500,
+            f"SKU : {sku}"
+        )
 
-        print("MAIN ERROR :", e)
+        c.drawString(
+            150,
+            450,
+            f"TOTAL LABELS : {len(items)}"
+        )
 
-        return f"ERROR : {str(e)}"
+        c.showPage()
 
-# =========================================
+    # =========================
+    # SAVE PDF
+    # =========================
+
+    c.save()
+
+    # =========================
+    # RETURN FILE
+    # =========================
+
+    return send_file(
+
+        output_pdf,
+
+        as_attachment=True
+
+    )
+
+# =========================
 # RUN
-# =========================================
+# =========================
 
 if __name__ == "__main__":
 
     app.run(
+
         host="0.0.0.0",
-        port=10000
+
+        port=10000,
+
+        debug=False
+
     )
