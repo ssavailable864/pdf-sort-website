@@ -1,10 +1,13 @@
 from flask import Flask, render_template, request, send_file
 import fitz
-import os
+import io
 import re
-import requests
+import os
 
 from collections import defaultdict
+
+from reportlab.pdfgen import canvas
+from reportlab.lib.utils import ImageReader
 
 app = Flask(__name__)
 
@@ -15,154 +18,87 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
 
-# -----------------------------------
-# FINAL SKU DETECTION
-# -----------------------------------
+# ---------------------------------
+# SKU EXTRACT FUNCTION
+# ---------------------------------
 def extract_sku(text):
 
-    text = text.upper()
+    text = text.replace("\n", " ")
+    text_upper = text.upper()
 
     patterns = [
 
-        r"SELLER SKU\s*[:\-]?\s*([A-Z0-9\-_]+)",
+        # MAIN SKU LINE
+        r"SKU\s+([A-Z0-9_-]{5,})",
 
-        r"SKU CODE\s*[:\-]?\s*([A-Z0-9\-_]+)",
-
-        r"SKU\s*[:\-]?\s*([A-Z0-9\-_]+)",
-
-        r"SKU\s*\n\s*([A-Z0-9\-_]+)"
+        # BACKUP
+        r"SKU\s*[:\-]?\s*([A-Z0-9_-]{5,})",
 
     ]
 
-    blacklist = [
+    reject_words = [
+
         "SIZE",
         "COLOR",
-        "TRACK",
-        "TRACKING",
-        "ORDER",
-        "ITEM",
-        "TOTAL",
-        "SKU",
         "QTY",
-        "COD",
-        "PAID",
-        "NAME",
-        "PRODUCT"
+        "FREE",
+        "NA",
+        "ORDER",
+        "SHADOWFAX",
+        "PREPAID",
+        "PICKUP",
+        "INVOICE",
+        "DETAILS"
+
     ]
 
     for pattern in patterns:
 
         matches = re.findall(
             pattern,
-            text,
+            text_upper,
             re.IGNORECASE
         )
 
-        for m in matches:
+        for sku in matches:
 
-            sku = m.strip().upper()
+            sku = sku.strip()
 
-            # clean symbols
-            sku = re.sub(
-                r'[^A-Z0-9\-_]',
-                '',
-                sku
-            )
-
-            # blacklist reject
-            if sku in blacklist:
+            # -----------------------------
+            # REJECT BAD VALUES
+            # -----------------------------
+            if sku in reject_words:
                 continue
 
-            # small reject
-            if len(sku) < 5:
+            # TRACKING IDS
+            if sku.startswith("SF"):
                 continue
 
-            # only numbers reject
-            if sku.isdigit():
+            # ADDRESS
+            if "NO24A" in sku:
                 continue
 
-            # tracking reject
-            if re.fullmatch(r"[A-Z]{2,5}[0-9]{8,}", sku):
+            # VERY LONG VALUES
+            if len(sku) > 25:
                 continue
 
-            # courier reject
-            if re.fullmatch(r"[A-Z]{2,5}\-[A-Z0-9]+", sku):
-                continue
-
+            # VALID SKU
             return sku
 
     return "UNKNOWN"
 
 
-# -----------------------------------
-# OCR API
-# -----------------------------------
-def ocr_page(page):
-
-    try:
-
-        rect = fitz.Rect(
-            40,
-            120,
-            420,
-            500
-        )
-
-        pix = page.get_pixmap(
-            matrix=fitz.Matrix(3, 3),
-            clip=rect
-        )
-
-        img_data = pix.tobytes("png")
-
-        response = requests.post(
-            "https://api.ocr.space/parse/image",
-            files={
-                "file": (
-                    "page.png",
-                    img_data,
-                    "image/png"
-                )
-            },
-            data={
-                "apikey": "helloworld",
-                "language": "eng"
-            },
-            timeout=60
-        )
-
-        result = response.json()
-
-        text = ""
-
-        if result.get("ParsedResults"):
-
-            text = result["ParsedResults"][0]["ParsedText"]
-
-        print("OCR TEXT:")
-        print(text)
-
-        return extract_sku(text)
-
-    except Exception as e:
-
-        print("OCR ERROR :", e)
-
-        return "UNKNOWN"
-
-
-# -----------------------------------
-# HOME
-# -----------------------------------
+# ---------------------------------
+# HOME PAGE
+# ---------------------------------
 @app.route("/")
 def home():
-
     return render_template("index.html")
 
 
-# -----------------------------------
-# UPLOAD
-# -----------------------------------
+# ---------------------------------
+# PDF UPLOAD
+# ---------------------------------
 @app.route("/upload", methods=["POST"])
 def upload():
 
@@ -171,7 +107,7 @@ def upload():
         file = request.files["pdf"]
 
         if file.filename == "":
-            return "NO FILE"
+            return "NO FILE SELECTED"
 
         filepath = os.path.join(
             UPLOAD_FOLDER,
@@ -186,79 +122,86 @@ def upload():
 
         total_pages = len(doc)
 
-        # -----------------------------------
-        # PROCESS EACH PAGE
-        # -----------------------------------
+        print("TOTAL PAGES :", total_pages)
+
+        # ---------------------------------
+        # READ EVERY PAGE
+        # ---------------------------------
         for page_num in range(total_pages):
 
             page = doc.load_page(page_num)
 
-            # -----------------------------------
-            # FAST TEXT EXTRACTION
-            # -----------------------------------
+            # DIRECT PDF TEXT
             text = page.get_text()
 
             sku = extract_sku(text)
 
-            # -----------------------------------
-            # OCR FALLBACK
-            # -----------------------------------
-            if sku == "UNKNOWN":
+            print(f"PAGE {page_num+1} SKU => {sku}")
 
-                sku = ocr_page(page)
+            # PAGE IMAGE
+            pix = page.get_pixmap(dpi=200)
 
-            print(
-                f"PAGE {page_num + 1} -> {sku}"
-            )
+            img_data = pix.tobytes("png")
 
-            grouped[sku].append(page_num)
+            grouped[sku].append(img_data)
 
-        # -----------------------------------
-        # CREATE OUTPUT PDF
-        # -----------------------------------
+        # ---------------------------------
+        # OUTPUT PDF
+        # ---------------------------------
         output_pdf = os.path.join(
             OUTPUT_FOLDER,
             "SORTED_" + file.filename
         )
 
-        new_doc = fitz.open()
+        c = canvas.Canvas(output_pdf)
 
-        # -----------------------------------
         # SORT SKU WISE
-        # -----------------------------------
         for sku in sorted(grouped.keys()):
 
-            pages = grouped[sku]
+            items = grouped[sku]
 
-            # original pages
-            for pno in pages:
+            # -----------------------------
+            # LABEL PAGES
+            # -----------------------------
+            for img in items:
 
-                new_doc.insert_pdf(
-                    doc,
-                    from_page=pno,
-                    to_page=pno
+                image_reader = ImageReader(
+                    io.BytesIO(img)
                 )
 
-            # summary page
-            summary = fitz.open()
+                c.drawImage(
+                    image_reader,
+                    0,
+                    0,
+                    width=595,
+                    height=842
+                )
 
-            s_page = summary.new_page()
+                c.showPage()
 
-            s_page.insert_text(
-                (160, 300),
-                f"SKU : {sku}",
-                fontsize=28
+            # -----------------------------
+            # SUMMARY PAGE
+            # -----------------------------
+            c.setFont(
+                "Helvetica-Bold",
+                28
             )
 
-            s_page.insert_text(
-                (160, 350),
-                f"TOTAL LABELS : {len(pages)}",
-                fontsize=22
+            c.drawString(
+                170,
+                550,
+                f"SKU : {sku}"
             )
 
-            new_doc.insert_pdf(summary)
+            c.drawString(
+                120,
+                480,
+                f"TOTAL LABELS : {len(items)}"
+            )
 
-        new_doc.save(output_pdf)
+            c.showPage()
+
+        c.save()
 
         return send_file(
             output_pdf,
@@ -270,9 +213,9 @@ def upload():
         return f"ERROR : {str(e)}"
 
 
-# -----------------------------------
+# ---------------------------------
 # RUN
-# -----------------------------------
+# ---------------------------------
 if __name__ == "__main__":
 
     app.run(
