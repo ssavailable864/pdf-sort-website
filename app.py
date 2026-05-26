@@ -26,65 +26,113 @@ def extract_sku(text):
     text = text.upper()
 
     # --------------------------------------------------
-    # METHOD 1
-    # SKU ke niche wali value
+    # REMOVE EXTRA SPACES
     # --------------------------------------------------
-    match = re.search(
+    clean_text = text.replace("\n", " ")
 
-        r"SKU\s+([A-Z0-9\s\-_]+)",
+    # --------------------------------------------------
+    # IGNORE WORDS
+    # --------------------------------------------------
+    ignore = [
+        "SIZE",
+        "COLOR",
+        "QTY",
+        "FREE",
+        "NA",
+        "ITEM",
+        "ORDER",
+        "ID"
+    ]
 
-        text,
+    # --------------------------------------------------
+    # METHOD 1
+    # SKU : APCD07
+    # SELLER SKU : APCD07
+    # --------------------------------------------------
+    patterns = [
 
-        re.MULTILINE
+        r"SELLER\s*SKU\s*[:\-]?\s*([A-Z0-9\-_]+)",
 
-    )
+        r"SKU\s*[:\-]?\s*([A-Z0-9\-_]+)",
 
-    if match:
+        r"STYLE\s*CODE\s*[:\-]?\s*([A-Z0-9\-_]+)",
 
-        sku = match.group(1).strip()
+        r"ITEM\s*CODE\s*[:\-]?\s*([A-Z0-9\-_]+)"
 
-        # only first line
-        sku = sku.split("\n")[0]
+    ]
 
-        # spaces -> underscore
-        sku = sku.replace(" ", "_")
+    for pattern in patterns:
 
-        ignore = [
-            "SIZE",
-            "COLOR",
-            "QTY",
-            "FREE",
-            "NA",
-            "ITEM"
-        ]
+        match = re.search(pattern, clean_text)
 
-        if sku not in ignore:
+        if match:
 
-            if len(sku) >= 5:
+            sku = match.group(1).strip()
 
-                return sku
+            if sku not in ignore:
+
+                if len(sku) >= 4:
+
+                    return sku
 
     # --------------------------------------------------
     # METHOD 2
-    # direct sku pattern
-    # example:
-    # 188042787 70
+    # FIND SKU LIKE APCD07
+    # --------------------------------------------------
+    matches = re.findall(
+
+        r"\b[A-Z]{2,}[A-Z0-9\-_]{2,}\b",
+
+        clean_text
+
+    )
+
+    for sku in matches:
+
+        # ignore long ids
+        if len(sku) > 25:
+            continue
+
+        # must contain number
+        if not re.search(r"\d", sku):
+            continue
+
+        # ignore bad words
+        bad_words = [
+            "ORDER",
+            "TRACK",
+            "PHONE",
+            "MOBILE",
+            "PINCODE"
+        ]
+
+        skip = False
+
+        for bad in bad_words:
+
+            if bad in sku:
+                skip = True
+
+        if skip:
+            continue
+
+        return sku
+
+    # --------------------------------------------------
+    # METHOD 3
+    # 188042787_70
     # --------------------------------------------------
     match2 = re.search(
 
-        r"\d{6,}[\s_-]\d+",
+        r"\d{6,}[_-]\d+",
 
-        text
+        clean_text
 
     )
 
     if match2:
 
-        sku = match2.group(0)
-
-        sku = sku.replace(" ", "_")
-
-        return sku
+        return match2.group(0)
 
     return "UNKNOWN"
 
@@ -135,15 +183,13 @@ def upload():
             page = doc.load_page(page_num)
 
             # ----------------------------------------------
-            # GET TEXT FROM PDF
+            # GET TEXT
             # ----------------------------------------------
             text = page.get_text()
 
             print("------------------------------------------------")
 
             print("PAGE :", page_num + 1)
-
-            print(text[:1000])
 
             # ----------------------------------------------
             # FIND SKU
