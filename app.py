@@ -1,13 +1,13 @@
 from flask import Flask, render_template, request, send_file
 import fitz
+from PIL import Image as PILImage
 import io
 import re
 import os
-
 from collections import defaultdict
-
 from reportlab.pdfgen import canvas
 from reportlab.lib.utils import ImageReader
+import requests
 
 app = Flask(__name__)
 
@@ -18,89 +18,44 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
 
-# -------------------------------------------------
-# SKU DETECTION
-# -------------------------------------------------
+# -----------------------------
+# SKU FIND FUNCTION
+# -----------------------------
 def extract_sku(text):
 
-    lines = text.split("\n")
+    text = text.upper()
 
-    blocked = [
-        "SIZE",
-        "COLOR",
-        "QTY",
-        "FREE",
-        "NO24A",
-        "NA"
+    patterns = [
+        r"SKU\s*[:\-]?\s*([A-Z0-9_-]+)",
+        r"SELLER SKU\s*[:\-]?\s*([A-Z0-9_-]+)",
+        r"SKU\s*\n\s*([A-Z0-9_-]+)"
     ]
 
-    for i in range(len(lines)):
+    for pattern in patterns:
 
-        line = lines[i].strip().upper()
-
-        # -------------------------
-        # FIND SKU LINE
-        # -------------------------
-        if line == "SKU":
-
-            # NEXT LINE VALUE
-            if i + 1 < len(lines):
-
-                next_line = lines[i + 1].strip()
-
-                next_line_upper = next_line.upper()
-
-                # BLOCK WRONG VALUES
-                if next_line_upper in blocked:
-                    continue
-
-                # TRACKING ID BLOCK
-                if next_line_upper.startswith("SF"):
-                    continue
-
-                # VALID SKU
-                if len(next_line) >= 4:
-                    return next_line
-
-        # -------------------------
-        # SKU : VALUE
-        # -------------------------
-        match = re.search(
-            r"SKU\s*[:\-]?\s*([A-Z0-9_ -]+)",
-            line,
-            re.I
-        )
+        match = re.search(pattern, text)
 
         if match:
 
             sku = match.group(1).strip()
 
-            sku_upper = sku.upper()
-
-            if sku_upper in blocked:
-                continue
-
-            if sku_upper.startswith("SF"):
-                continue
-
-            if len(sku) >= 4:
+            if len(sku) > 2:
                 return sku
 
-    return "UNKNOWN"
+    return "ZZZ"
 
 
-# -------------------------------------------------
-# HOME
-# -------------------------------------------------
+# -----------------------------
+# HOME PAGE
+# -----------------------------
 @app.route("/")
 def home():
-
     return render_template("index.html")
 
 
-# -------------------------------------------------
-# UPLOAD
-# -------------------------------------------------
+# -----------------------------
+# UPLOAD PDF
+# -----------------------------
 @app.route("/upload", methods=["POST"])
 def upload():
 
@@ -109,7 +64,7 @@ def upload():
         file = request.files["pdf"]
 
         if file.filename == "":
-            return "NO FILE"
+            return "NO FILE SELECTED"
 
         filepath = os.path.join(
             UPLOAD_FOLDER,
@@ -122,33 +77,71 @@ def upload():
 
         grouped = defaultdict(list)
 
-        # -------------------------------------
-        # READ ALL PAGES
-        # -------------------------------------
-        for page_num in range(len(doc)):
+        total_pages = len(doc)
+
+        # -----------------------------
+        # READ EACH PAGE
+        # -----------------------------
+        for page_num in range(total_pages):
 
             page = doc.load_page(page_num)
 
-            # TEXT
-            text = page.get_text()
-
-            print(text)
-
-            # FIND SKU
-            sku = extract_sku(text)
-
-            print("FOUND SKU =", sku)
-
-            # IMAGE
             pix = page.get_pixmap(dpi=200)
 
             img_data = pix.tobytes("png")
 
+            image = PILImage.open(io.BytesIO(img_data))
+
+            # -----------------------------
+            # OCR SPACE API
+            # -----------------------------
+            try:
+
+                response = requests.post(
+                    "https://api.ocr.space/parse/image",
+                    files={
+                        "filename": (
+                            "page.png",
+                            img_data,
+                            "image/png"
+                        )
+                    },
+                    data={
+                        "apikey": "helloworld",
+                        "language": "eng"
+                    },
+                    timeout=60
+                )
+
+                result = response.json()
+
+                text = ""
+
+                if result.get("ParsedResults"):
+
+                    text = result["ParsedResults"][0]["ParsedText"]
+
+                else:
+                    text = ""
+
+            except Exception as e:
+
+                print("OCR ERROR :", e)
+
+                text = ""
+
+            # -----------------------------
+            # FIND SKU
+            # -----------------------------
+            sku = extract_sku(text)
+
+            print("FOUND SKU :", sku)
+
             grouped[sku].append(img_data)
 
-        # -------------------------------------
+        # -----------------------------
         # OUTPUT PDF
-        # -------------------------------------
+        # -----------------------------
         output_pdf = os.path.join(
             OUTPUT_FOLDER,
             "SORTED_" + file.filename
@@ -156,7 +149,9 @@ def upload():
 
         c = canvas.Canvas(output_pdf)
 
+        # -----------------------------
         # SORT SKU WISE
+        # -----------------------------
         for sku in sorted(grouped.keys()):
 
             items = grouped[sku]
@@ -164,9 +159,7 @@ def upload():
             # LABEL PAGES
             for img in items:
 
-                image_reader = ImageReader(
-                    io.BytesIO(img)
-                )
+                image_reader = ImageReader(io.BytesIO(img))
 
                 c.drawImage(
                     image_reader,
@@ -178,21 +171,20 @@ def upload():
 
                 c.showPage()
 
+            # -----------------------------
             # SUMMARY PAGE
-            c.setFont(
-                "Helvetica-Bold",
-                28
-            )
+            # -----------------------------
+            c.setFont("Helvetica-Bold", 28)
 
             c.drawString(
-                130,
+                170,
                 550,
                 f"SKU : {sku}"
             )
 
             c.drawString(
-                100,
-                470,
+                120,
+                480,
                 f"TOTAL LABELS : {len(items)}"
             )
 
@@ -210,11 +202,10 @@ def upload():
         return f"ERROR : {str(e)}"
 
 
-# -------------------------------------------------
-# RUN
-# -------------------------------------------------
+# -----------------------------
+# RUN APP
+# -----------------------------
 if __name__ == "__main__":
-
     app.run(
         host="0.0.0.0",
         port=10000,
