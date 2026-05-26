@@ -1,12 +1,13 @@
-from flask import Flask, render_template, request, send_file
+from flask import Flask, request, send_file, render_template
 import fitz
-import io
-import re
 import os
+import io
+import cv2
+import numpy as np
+from pyzbar.pyzbar import decode
 from collections import defaultdict
 from reportlab.pdfgen import canvas
 from reportlab.lib.utils import ImageReader
-import requests
 
 app = Flask(__name__)
 
@@ -18,25 +19,17 @@ os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
 
 # -----------------------------
-# SKU DETECTOR (FINAL FIX)
+# BARCODE SKU DETECTOR (FASTEST)
 # -----------------------------
-def extract_sku(text):
-    if not text:
-        return None
+def get_sku_from_barcode(image_bytes):
+    nparr = np.frombuffer(image_bytes, np.uint8)
+    img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
 
-    text = text.upper()
-    text = re.sub(r'\s+', ' ', text)
+    barcodes = decode(img)
 
-    patterns = [
-        r"SKU\s*[:\-]?\s*([A-Z0-9_-]{2,})",
-        r"SELLER\s*SKU\s*[:\-]?\s*([A-Z0-9_-]{2,})",
-        r"SKU\s*NO\s*[:\-]?\s*([A-Z0-9_-]{2,})",
-    ]
-
-    for p in patterns:
-        m = re.search(p, text)
-        if m:
-            return m.group(1).strip()
+    for barcode in barcodes:
+        sku = barcode.data.decode("utf-8")
+        return sku.strip()
 
     return None
 
@@ -50,97 +43,63 @@ def home():
 
 
 # -----------------------------
-# UPLOAD + PROCESS
+# PROCESS PDF
 # -----------------------------
 @app.route("/upload", methods=["POST"])
 def upload():
-    try:
-        file = request.files["pdf"]
+    file = request.files["pdf"]
 
-        if file.filename == "":
-            return "NO FILE SELECTED"
+    filepath = os.path.join(UPLOAD_FOLDER, file.filename)
+    file.save(filepath)
 
-        filepath = os.path.join(UPLOAD_FOLDER, file.filename)
-        file.save(filepath)
+    doc = fitz.open(filepath)
 
-        doc = fitz.open(filepath)
+    grouped = defaultdict(list)
 
-        grouped = {}
+    # -----------------------------
+    # FAST PROCESSING LOOP
+    # -----------------------------
+    for page_num in range(len(doc)):
+        page = doc.load_page(page_num)
 
-        for page_num in range(len(doc)):
-            page = doc.load_page(page_num)
+        pix = page.get_pixmap(dpi=200)
+        img_bytes = pix.tobytes("png")
 
-            pix = page.get_pixmap(dpi=200)
-            img_data = pix.tobytes("png")
+        sku = get_sku_from_barcode(img_bytes)
 
-            # ---------------- OCR ----------------
-            try:
-                response = requests.post(
-                    "https://api.ocr.space/parse/image",
-                    files={"filename": ("page.png", img_data, "image/png")},
-                    data={"apikey": "helloworld", "language": "eng"},
-                    timeout=60
-                )
+        if not sku:
+            sku = "UNKNOWN"
 
-                result = response.json()
+        print("PAGE:", page_num, "SKU:", sku)
 
-                text = ""
-                if result.get("ParsedResults"):
-                    text = result["ParsedResults"][0]["ParsedText"]
+        grouped[sku].append(img_bytes)
 
-            except:
-                text = ""
+    # -----------------------------
+    # OUTPUT PDF
+    # -----------------------------
+    output_file = os.path.join(OUTPUT_FOLDER, "SORTED_" + file.filename)
+    c = canvas.Canvas(output_file)
 
-            print("\nPAGE:", page_num)
-            print("OCR TEXT:", text[:150])
+    for sku in sorted(grouped.keys(), key=lambda x: (x == "UNKNOWN", x)):
 
-            sku = extract_sku(text)
+        items = grouped[sku]
 
-            if not sku:
-                sku = "UNKNOWN"
-
-            print("SKU FOUND:", sku)
-
-            if sku not in grouped:
-                grouped[sku] = []
-
-            grouped[sku].append(img_data)
-
-        # ---------------- OUTPUT PDF ----------------
-        output_pdf = os.path.join(OUTPUT_FOLDER, "SORTED_" + file.filename)
-        c = canvas.Canvas(output_pdf)
-
-        for sku in sorted(grouped.keys(), key=lambda x: (x == "UNKNOWN", x)):
-
-            items = grouped[sku]
-
-            for img in items:
-                c.drawImage(
-                    ImageReader(io.BytesIO(img)),
-                    0, 0,
-                    width=595,
-                    height=842
-                )
-                c.showPage()
-
-            c.setFont("Helvetica-Bold", 28)
-            c.drawString(170, 550, f"SKU : {sku}")
-
-            c.setFont("Helvetica", 20)
-            c.drawString(150, 480, f"TOTAL LABELS : {len(items)}")
-
+        for img in items:
+            c.drawImage(ImageReader(io.BytesIO(img)), 0, 0, 595, 842)
             c.showPage()
 
-        c.save()
+        c.setFont("Helvetica-Bold", 26)
+        c.drawString(180, 550, f"SKU: {sku}")
+        c.drawString(150, 500, f"TOTAL: {len(items)}")
+        c.showPage()
 
-        return send_file(output_pdf, as_attachment=True)
+    c.save()
 
-    except Exception as e:
-        return f"ERROR: {str(e)}"
+    return send_file(output_file, as_attachment=True)
 
 
 # -----------------------------
 # RUN
 # -----------------------------
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=10000, debug=False)
+    app.run(debug=False)
