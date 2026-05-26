@@ -3,11 +3,11 @@ import fitz
 import io
 import os
 import re
+import requests
+
+from PIL import Image
 
 from collections import defaultdict
-
-from reportlab.pdfgen import canvas
-from reportlab.lib.utils import ImageReader
 
 app = Flask(__name__)
 
@@ -18,87 +18,130 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
 
-# -----------------------------------
-# CLEAN SKU DETECTION
-# -----------------------------------
-def extract_sku(text):
+# ----------------------------------------
+# SKU FILTER
+# ----------------------------------------
+def clean_sku(value):
 
-    text = text.replace("\r", "\n")
-
-    lines = text.split("\n")
+    value = value.strip().upper()
 
     blacklist = [
         "SIZE",
-        "ORDER",
         "TRACK",
         "TRACKING",
+        "ORDER",
         "SHIP",
-        "DELIVERY",
         "COD",
         "PAID",
         "QTY",
         "TOTAL",
-        "AMOUNT",
-        "SELLER",
+        "ITEM",
         "RETURN",
-        "DATE"
+        "DELIVERY"
     ]
+
+    if len(value) < 4:
+        return None
+
+    for b in blacklist:
+        if b in value:
+            return None
+
+    # tracking ids ignore
+    if re.fullmatch(r"[A-Z]{2,5}[0-9]{8,}", value):
+        return None
+
+    # courier codes ignore
+    if re.fullmatch(r"[A-Z]{2,5}\-[A-Z0-9]+", value):
+        return None
+
+    return value
+
+
+# ----------------------------------------
+# TEXT SKU
+# ----------------------------------------
+def extract_sku_from_text(text):
+
+    lines = text.split("\n")
 
     for i, line in enumerate(lines):
 
-        line_upper = line.upper().strip()
+        line_upper = line.upper()
 
-        # SKU line mila
         if "SKU" in line_upper:
 
-            # next 3 lines check karo
             for j in range(1, 4):
 
                 if i + j >= len(lines):
                     continue
 
-                possible = lines[i + j].strip().upper()
+                candidate = lines[i + j]
 
-                possible = re.sub(r'[^A-Z0-9\-_ ]', '', possible)
+                candidate = re.sub(
+                    r"[^A-Z0-9\-_ ]",
+                    "",
+                    candidate.upper()
+                )
 
-                if len(possible) < 4:
-                    continue
+                sku = clean_sku(candidate)
 
-                # blacklist ignore
-                bad = False
+                if sku:
+                    return sku
 
-                for word in blacklist:
-                    if word in possible:
-                        bad = True
-                        break
-
-                if bad:
-                    continue
-
-                # tracking id ignore
-                if re.fullmatch(r"[A-Z]{2,5}[0-9]{8,}", possible):
-                    continue
-
-                # courier code ignore
-                if re.fullmatch(r"[A-Z]{2,5}\-[A-Z0-9]{1,5}", possible):
-                    continue
-
-                return possible
-
-    return "UNKNOWN"
+    return None
 
 
-# -----------------------------------
+# ----------------------------------------
+# OCR SKU
+# ----------------------------------------
+def extract_sku_ocr(img_data):
+
+    try:
+
+        response = requests.post(
+            "https://api.ocr.space/parse/image",
+            files={
+                "file": (
+                    "page.png",
+                    img_data,
+                    "image/png"
+                )
+            },
+            data={
+                "apikey": "helloworld",
+                "language": "eng"
+            },
+            timeout=60
+        )
+
+        result = response.json()
+
+        text = ""
+
+        if result.get("ParsedResults"):
+            text = result["ParsedResults"][0]["ParsedText"]
+
+        return extract_sku_from_text(text)
+
+    except Exception as e:
+
+        print("OCR ERROR :", e)
+
+        return None
+
+
+# ----------------------------------------
 # HOME
-# -----------------------------------
+# ----------------------------------------
 @app.route("/")
 def home():
     return render_template("index.html")
 
 
-# -----------------------------------
+# ----------------------------------------
 # UPLOAD
-# -----------------------------------
+# ----------------------------------------
 @app.route("/upload", methods=["POST"])
 def upload():
 
@@ -120,28 +163,41 @@ def upload():
 
         grouped = defaultdict(list)
 
-        # -----------------------------------
+        # ----------------------------------------
         # PAGE LOOP
-        # -----------------------------------
+        # ----------------------------------------
         for page_num in range(len(doc)):
 
             page = doc.load_page(page_num)
 
-            # DIRECT TEXT
+            # FAST TEXT TRY
             text = page.get_text()
 
-            sku = extract_sku(text)
+            sku = extract_sku_from_text(text)
 
-            print("PAGE", page_num + 1)
-            print("FOUND SKU :", sku)
+            # ----------------------------------------
+            # OCR FALLBACK
+            # ----------------------------------------
+            if not sku:
 
-            pdf_bytes = page.parent.convert_to_pdf()
+                pix = page.get_pixmap(dpi=200)
+
+                img_data = pix.tobytes("png")
+
+                sku = extract_sku_ocr(img_data)
+
+            # still not found
+            if not sku:
+                sku = "UNKNOWN"
+
+            print("PAGE :", page_num + 1)
+            print("SKU :", sku)
 
             grouped[sku].append(page_num)
 
-        # -----------------------------------
-        # OUTPUT PDF
-        # -----------------------------------
+        # ----------------------------------------
+        # OUTPUT
+        # ----------------------------------------
         output_pdf = os.path.join(
             OUTPUT_FOLDER,
             "SORTED_" + file.filename
@@ -149,12 +205,11 @@ def upload():
 
         new_doc = fitz.open()
 
-        # SORTING
         for sku in sorted(grouped.keys()):
 
             pages = grouped[sku]
 
-            # add pages
+            # insert pages
             for pno in pages:
 
                 new_doc.insert_pdf(
@@ -166,15 +221,15 @@ def upload():
             # summary page
             summary = fitz.open()
 
-            page = summary.new_page()
+            spage = summary.new_page()
 
-            page.insert_text(
+            spage.insert_text(
                 (170, 300),
                 f"SKU : {sku}",
                 fontsize=28
             )
 
-            page.insert_text(
+            spage.insert_text(
                 (170, 350),
                 f"TOTAL LABELS : {len(pages)}",
                 fontsize=24
@@ -194,9 +249,9 @@ def upload():
         return f"ERROR : {str(e)}"
 
 
-# -----------------------------------
+# ----------------------------------------
 # RUN
-# -----------------------------------
+# ----------------------------------------
 if __name__ == "__main__":
 
     app.run(
