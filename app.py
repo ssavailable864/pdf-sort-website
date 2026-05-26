@@ -2,6 +2,7 @@ from flask import Flask, render_template, request, send_file
 import fitz
 import re
 import os
+import io
 
 from collections import defaultdict
 
@@ -10,9 +11,9 @@ from reportlab.lib.utils import ImageReader
 
 app = Flask(__name__)
 
-# =====================================
+# =========================
 # FOLDERS
-# =====================================
+# =========================
 
 UPLOAD_FOLDER = "uploads"
 OUTPUT_FOLDER = "output"
@@ -20,45 +21,40 @@ OUTPUT_FOLDER = "output"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
-# =====================================
+# =========================
 # SKU FIND
-# =====================================
+# =========================
 
 def extract_sku(text):
 
-    patterns = [
+    # PRODUCT DETAILS KE BAAD SKU
+    match = re.search(
 
-        r'FNSKU[: ]+([A-Z0-9]+)',
+        r'SKU\s+([A-Z0-9_/-]+)',
 
-        r'ASIN[: ]+([A-Z0-9]+)',
+        text,
 
-        r'SKU[: ]+([A-Z0-9_-]+)',
+        re.I
 
-        r'Seller SKU[: ]+([A-Z0-9_-]+)',
+    )
 
-    ]
-
-    for pattern in patterns:
-
-        match = re.search(pattern, text, re.I)
-
-        if match:
-            return match.group(1)
+    if match:
+        return match.group(1)
 
     return "ZZZ"
 
-# =====================================
+# =========================
 # HOME
-# =====================================
+# =========================
 
 @app.route("/")
 def home():
 
     return render_template("index.html")
 
-# =====================================
+# =========================
 # UPLOAD
-# =====================================
+# =========================
 
 @app.route("/upload", methods=["POST"])
 def upload():
@@ -68,7 +64,7 @@ def upload():
         file = request.files["pdf"]
 
         if not file:
-            return "No File"
+            return "No file selected"
 
         filepath = os.path.join(
             UPLOAD_FOLDER,
@@ -83,32 +79,33 @@ def upload():
 
         total_pages = len(doc)
 
-        # =====================================
-        # PAGE LOOP
-        # =====================================
+        # =========================
+        # READ ALL PAGES
+        # =========================
 
         for page_num in range(total_pages):
 
             page = doc.load_page(page_num)
 
-            # DIRECT TEXT
+            # DIRECT TEXT EXTRACT
             text = page.get_text()
 
             print(text)
 
             sku = extract_sku(text)
 
-            print("FOUND SKU :", sku)
+            print("FOUND SKU =", sku)
 
+            # PAGE IMAGE
             pix = page.get_pixmap(dpi=200)
 
             img_data = pix.tobytes("png")
 
             grouped[sku].append(img_data)
 
-        # =====================================
+        # =========================
         # OUTPUT PDF
-        # =====================================
+        # =========================
 
         output_pdf = os.path.join(
 
@@ -120,18 +117,23 @@ def upload():
 
         c = canvas.Canvas(output_pdf)
 
-        # =====================================
+        # =========================
         # SORT SKU
-        # =====================================
+        # =========================
 
         for sku in sorted(grouped.keys()):
 
             items = grouped[sku]
 
+            # =========================
             # LABEL PAGES
+            # =========================
+
             for img in items:
 
-                image_reader = ImageReader(img)
+                image_reader = ImageReader(
+                    io.BytesIO(img)
+                )
 
                 c.drawImage(
 
@@ -147,7 +149,9 @@ def upload():
 
                 c.showPage()
 
+            # =========================
             # SUMMARY PAGE
+            # =========================
 
             c.setFont(
                 "Helvetica-Bold",
@@ -182,9 +186,9 @@ def upload():
 
         return f"ERROR : {str(e)}"
 
-# =====================================
+# =========================
 # RUN
-# =====================================
+# =========================
 
 if __name__ == "__main__":
 
