@@ -1,3 +1,4 @@
+```python
 from flask import Flask, render_template, request, send_file
 import fitz
 import requests
@@ -55,123 +56,160 @@ def home():
 @app.route("/upload", methods=["POST"])
 def upload():
 
-    file = request.files["pdf"]
+    try:
 
-    filepath = os.path.join(
-        UPLOAD_FOLDER,
-        file.filename
-    )
+        file = request.files["pdf"]
 
-    file.save(filepath)
+        if file.filename == "":
+            return "No file selected"
 
-    # OPEN PDF
-    doc = fitz.open(filepath)
-
-    grouped = defaultdict(list)
-
-    # =========================================
-    # PAGE LOOP
-    # =========================================
-
-    for page_num in range(len(doc)):
-
-        page = doc.load_page(page_num)
-
-        # HIGH QUALITY IMAGE
-        pix = page.get_pixmap(dpi=200)
-
-        img_data = pix.tobytes("png")
-
-        image = PILImage.open(io.BytesIO(img_data))
-
-        # =========================================
-        # OCR API
-        # =========================================
-
-        response = requests.post(
-            "https://api.ocr.space/parse/image",
-            files={"filename": img_data},
-            data={
-                "apikey": "helloworld",
-                "language": "eng"
-            }
+        filepath = os.path.join(
+            UPLOAD_FOLDER,
+            file.filename
         )
 
-        result = response.json()
+        file.save(filepath)
 
-        text = ""
+        # OPEN PDF
+        doc = fitz.open(filepath)
 
-        if result.get("ParsedResults"):
+        grouped = defaultdict(list)
 
-            text = result["ParsedResults"][0]["ParsedText"]
+        total_pages = len(doc)
 
         # =========================================
-        # FIND SKU
+        # PAGE LOOP
         # =========================================
 
-        sku = extract_sku(text)
+        for page_num in range(total_pages):
 
-        grouped[sku].append(img_data)
+            page = doc.load_page(page_num)
 
-    # =========================================
-    # OUTPUT PDF
-    # =========================================
+            # LOWER DPI FOR FASTER SPEED
+            pix = page.get_pixmap(dpi=120)
 
-    output_pdf = os.path.join(
-        OUTPUT_FOLDER,
-        "SORTED_" + file.filename
-    )
+            img_data = pix.tobytes("png")
 
-    c = canvas.Canvas(output_pdf)
+            image = PILImage.open(io.BytesIO(img_data))
 
-    # =========================================
-    # SORTING
-    # =========================================
+            # =========================================
+            # OCR API
+            # =========================================
 
-    for sku in sorted(grouped.keys()):
+            try:
 
-        items = grouped[sku]
+                response = requests.post(
+                    "https://api.ocr.space/parse/image",
+                    files={
+                        "filename": (
+                            "page.png",
+                            img_data,
+                            "image/png"
+                        )
+                    },
+                    data={
+                        "apikey": "helloworld",
+                        "language": "eng",
+                        "OCREngine": "2"
+                    },
+                    timeout=60
+                )
 
-        # LABEL PAGES
-        for img in items:
+                result = response.json()
 
-            image_reader = ImageReader(io.BytesIO(img))
+                text = ""
 
-            c.drawImage(
-                image_reader,
-                0,
-                0,
-                width=595,
-                height=842
+                if result.get("ParsedResults"):
+
+                    text = result["ParsedResults"][0]["ParsedText"]
+
+                else:
+
+                    text = ""
+
+            except Exception as e:
+
+                print("OCR ERROR:", e)
+
+                text = ""
+
+            # =========================================
+            # FIND SKU
+            # =========================================
+
+            sku = extract_sku(text)
+
+            grouped[sku].append(img_data)
+
+            print(f"PAGE {page_num + 1}/{total_pages} DONE")
+
+        # =========================================
+        # OUTPUT PDF
+        # =========================================
+
+        output_pdf = os.path.join(
+            OUTPUT_FOLDER,
+            "SORTED_" + file.filename
+        )
+
+        c = canvas.Canvas(output_pdf)
+
+        # =========================================
+        # SORTING
+        # =========================================
+
+        for sku in sorted(grouped.keys()):
+
+            items = grouped[sku]
+
+            # LABEL PAGES
+            for img in items:
+
+                image_reader = ImageReader(io.BytesIO(img))
+
+                c.drawImage(
+                    image_reader,
+                    0,
+                    0,
+                    width=595,
+                    height=842
+                )
+
+                c.showPage()
+
+            # SUMMARY PAGE
+            c.setFont("Helvetica-Bold", 24)
+
+            c.drawString(
+                150,
+                500,
+                f"SKU : {sku}"
+            )
+
+            c.drawString(
+                150,
+                450,
+                f"TOTAL LABELS : {len(items)}"
             )
 
             c.showPage()
 
-        # SUMMARY PAGE
-        c.setFont("Helvetica-Bold", 24)
+        # SAVE PDF
+        c.save()
 
-        c.drawString(
-            180,
-            500,
-            f"SKU : {sku}"
+        print("PDF CREATED")
+
+        # DOWNLOAD
+        return send_file(
+            output_pdf,
+            as_attachment=True
         )
 
-        c.drawString(
-            180,
-            450,
-            f"TOTAL LABELS : {len(items)}"
-        )
+    except Exception as e:
 
-        c.showPage()
+        print("MAIN ERROR:", e)
 
-    # SAVE PDF
-    c.save()
-
-    # DOWNLOAD
-    return send_file(
-        output_pdf,
-        as_attachment=True
-    )
+        return f"ERROR : {str(e)}"
 
 # =========================================
 # RUN APP
@@ -183,3 +221,4 @@ if __name__ == "__main__":
         host="0.0.0.0",
         port=10000
     )
+```
