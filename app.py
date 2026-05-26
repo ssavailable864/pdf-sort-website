@@ -1,6 +1,6 @@
 from flask import Flask, render_template, request, send_file
 import fitz
-import pytesseract
+import requests
 from PIL import Image as PILImage
 import io
 import re
@@ -67,7 +67,21 @@ def upload():
 
         image = PILImage.open(io.BytesIO(img_data))
 
-        text = pytesseract.image_to_string(image)
+        response = requests.post(
+    "https://api.ocr.space/parse/image",
+    files={"filename": img_data},
+    data={
+        "apikey": "helloworld",
+        "language": "eng"
+    }
+)
+
+result = response.json()
+
+text = ""
+
+if result.get("ParsedResults"):
+    text = result["ParsedResults"][0]["ParsedText"]
 
         sku = extract_sku(text)
 
