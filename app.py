@@ -1,11 +1,10 @@
 from flask import Flask, render_template, request, send_file
 import fitz
+from PIL import Image as PILImage
 import io
 import re
 import os
-
 from collections import defaultdict
-
 from reportlab.pdfgen import canvas
 from reportlab.lib.utils import ImageReader
 
@@ -18,87 +17,81 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
 
-# ---------------------------------
-# SKU EXTRACT FUNCTION
-# ---------------------------------
+# ---------------------------------------------------
+# REAL SKU DETECTION
+# ---------------------------------------------------
 def extract_sku(text):
 
+    # CLEAN TEXT
     text = text.replace("\n", " ")
-    text_upper = text.upper()
+    text = text.replace("\r", " ")
 
+    # REMOVE EXTRA SPACES
+    text = re.sub(r"\s+", " ", text)
+
+    # ----------------------------------------
+    # TRY TO FIND SKU AFTER "SKU"
+    # ----------------------------------------
     patterns = [
 
-        # MAIN SKU LINE
-        r"SKU\s+([A-Z0-9_-]{5,})",
+        # SKU 535971583_67
+        r"SKU\s+([0-9]{6,}_[0-9]+)",
 
-        # BACKUP
-        r"SKU\s*[:\-]?\s*([A-Z0-9_-]{5,})",
+        # SKU APCD07
+        r"SKU\s+([A-Z0-9]{4,})",
+
+        # Product Details SKU 535971583_67
+        r"Product Details.*?SKU\s+([A-Z0-9_-]+)",
 
     ]
 
-    reject_words = [
+    blocked_words = [
 
         "SIZE",
         "COLOR",
         "QTY",
         "FREE",
         "NA",
-        "ORDER",
-        "SHADOWFAX",
-        "PREPAID",
-        "PICKUP",
-        "INVOICE",
-        "DETAILS"
+        "NO24A",
+        "TS_AN",
+        "S46_SME"
 
     ]
 
     for pattern in patterns:
 
-        matches = re.findall(
-            pattern,
-            text_upper,
-            re.IGNORECASE
-        )
+        match = re.search(pattern, text, re.I)
 
-        for sku in matches:
+        if match:
 
-            sku = sku.strip()
+            sku = match.group(1).strip().upper()
 
-            # -----------------------------
-            # REJECT BAD VALUES
-            # -----------------------------
-            if sku in reject_words:
-                continue
+            # REMOVE WRONG VALUES
+            if sku not in blocked_words:
 
-            # TRACKING IDS
-            if sku.startswith("SF"):
-                continue
+                # TRACKING ID BLOCK
+                if not sku.startswith("SF"):
 
-            # ADDRESS
-            if "NO24A" in sku:
-                continue
+                    # VERY LONG NUMBER BLOCK
+                    if len(sku) < 25:
 
-            # VERY LONG VALUES
-            if len(sku) > 25:
-                continue
-
-            # VALID SKU
-            return sku
+                        return sku
 
     return "UNKNOWN"
 
 
-# ---------------------------------
+# ---------------------------------------------------
 # HOME PAGE
-# ---------------------------------
+# ---------------------------------------------------
 @app.route("/")
 def home():
+
     return render_template("index.html")
 
 
-# ---------------------------------
-# PDF UPLOAD
-# ---------------------------------
+# ---------------------------------------------------
+# UPLOAD PDF
+# ---------------------------------------------------
 @app.route("/upload", methods=["POST"])
 def upload():
 
@@ -107,6 +100,7 @@ def upload():
         file = request.files["pdf"]
 
         if file.filename == "":
+
             return "NO FILE SELECTED"
 
         filepath = os.path.join(
@@ -122,21 +116,21 @@ def upload():
 
         total_pages = len(doc)
 
-        print("TOTAL PAGES :", total_pages)
-
-        # ---------------------------------
-        # READ EVERY PAGE
-        # ---------------------------------
+        # ----------------------------------------
+        # READ ALL PAGES
+        # ----------------------------------------
         for page_num in range(total_pages):
 
             page = doc.load_page(page_num)
 
-            # DIRECT PDF TEXT
+            # DIRECT TEXT EXTRACTION
             text = page.get_text()
 
+            # FIND SKU
             sku = extract_sku(text)
 
-            print(f"PAGE {page_num+1} SKU => {sku}")
+            print("PAGE :", page_num + 1)
+            print("FOUND SKU :", sku)
 
             # PAGE IMAGE
             pix = page.get_pixmap(dpi=200)
@@ -145,9 +139,9 @@ def upload():
 
             grouped[sku].append(img_data)
 
-        # ---------------------------------
+        # ----------------------------------------
         # OUTPUT PDF
-        # ---------------------------------
+        # ----------------------------------------
         output_pdf = os.path.join(
             OUTPUT_FOLDER,
             "SORTED_" + file.filename
@@ -155,7 +149,9 @@ def upload():
 
         c = canvas.Canvas(output_pdf)
 
+        # ----------------------------------------
         # SORT SKU WISE
+        # ----------------------------------------
         for sku in sorted(grouped.keys()):
 
             items = grouped[sku]
@@ -165,9 +161,7 @@ def upload():
             # -----------------------------
             for img in items:
 
-                image_reader = ImageReader(
-                    io.BytesIO(img)
-                )
+                image_reader = ImageReader(io.BytesIO(img))
 
                 c.drawImage(
                     image_reader,
@@ -182,13 +176,10 @@ def upload():
             # -----------------------------
             # SUMMARY PAGE
             # -----------------------------
-            c.setFont(
-                "Helvetica-Bold",
-                28
-            )
+            c.setFont("Helvetica-Bold", 28)
 
             c.drawString(
-                170,
+                150,
                 550,
                 f"SKU : {sku}"
             )
@@ -213,9 +204,9 @@ def upload():
         return f"ERROR : {str(e)}"
 
 
-# ---------------------------------
-# RUN
-# ---------------------------------
+# ---------------------------------------------------
+# RUN APP
+# ---------------------------------------------------
 if __name__ == "__main__":
 
     app.run(
