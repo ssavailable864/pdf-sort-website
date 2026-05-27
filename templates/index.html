@@ -158,43 +158,51 @@
             progressFill.innerText = value + '%';
         }
 
-        // SOLID REGEX MATCHING LOGIC FOR SKU
+        // UPDATED & POWERFUL LOGIC FOR APCD07 STYLE SKUs
         function extractSkuFromText(text) {
             if (!text) return "UNKNOWN";
 
-            // 1. DIRECT HIT: Tumhare SKU ka pattern (Jaise: 188042787_70) -> Numbers_Underscore_Numbers
-            let patternMatch = text.match(/\d+_\d+/);
-            if (patternMatch) {
-                return patternMatch[0].trim();
-            }
-
+            // Lines mein break karo aur extra spaces saaf karo
             const lines = text.split('\n').map(l => l.trim()).filter(l => l);
             
-            // 2. BACKUP TARGET: Agar exact "SKU" ke niche wali line chahiye ho
+            // 1. FIRST PRIORITY: "SKU" word ke exact niche ya aaju-baaju kya likha hai
             for (let i = 0; i < lines.length; i++) {
                 let currentLine = lines[i].toUpperCase();
                 
+                // Agar poori line hi sirf "SKU" hai, toh uske niche wali line pakka SKU hai
                 if (currentLine === "SKU") {
                     if (i + 1 < lines.length) {
                         let potentialSku = lines[i + 1].trim();
-                        if (potentialSku.length > 3 && potentialSku !== "SIZE" && potentialSku !== "QTY") {
+                        // Validation: Size, Qty jaisa fasaane wala shabd na ho
+                        if (potentialSku.length >= 3 && !["SIZE", "QTY", "QUANTITY", "PRICE"].includes(potentialSku.toUpperCase())) {
                             return potentialSku;
                         }
                     }
                 }
                 
-                if (currentLine.includes("SKU")) {
+                // Agar line mein "SKU:" ya "SKU -" likha ho (Jaise: SKU: APCD07)
+                if (currentLine.includes("SKU") && currentLine.length > 3) {
                     let match = lines[i].match(/SKU[\s:]*([\w\d_-]+)/i);
-                    if (match && match[1].length > 2) return match[1];
+                    if (match && match[1].length >= 3) {
+                        let extracted = match[1].trim();
+                        if (!["SIZE", "QTY"].includes(extracted.toUpperCase())) {
+                            return extracted;
+                        }
+                    }
                 }
             }
 
-            // 3. FINAL BACKUP: Koi bhi alphanumeric jo 8 se 20 char ka ho aur order/GST na ho
+            // 2. SECOND PRIORITY: Agar "SKU" word nahi mila, toh pure text mein APCD07 jaisa pattern dhoodho
+            // Yeh pattern dhoodhega: Alphabets ke baad direct numbers (Jaise: APCD07 ya APCD_07 या AP-07)
             for (let line of lines) {
-                let cleaned = line.replace(/[\s\t]/g, '');
-                if (cleaned.length >= 8 && cleaned.length <= 20 && /^[A-Z0-9_-]+$/i.test(cleaned)) {
-                    if (!cleaned.includes("GSTIN") && cleaned.length !== 15) {
-                        return cleaned;
+                let cleaned = line.replace(/[\s\t]/g, ''); // spaces mitao
+                
+                // Regex: Starts with alphabets, can have numbers/dash/underscore, length between 4 to 15
+                // Specially built for alphanumeric tags like APCD07
+                if (/^[A-Z]+[0-9_-]+/i.test(cleaned) || /^[A-Z0-9_-]{4,12}$/i.test(cleaned)) {
+                    // Safe checks: Reject pure numbers (Order IDs), GST numbers (15 chars), or common labels
+                    if (!/^\d+$/.test(cleaned) && cleaned.length !== 15 && !cleaned.toUpperCase().includes("GSTIN")) {
+                        return line.trim(); // Original line spaces ke sath return karo taaki clean dikhe
                     }
                 }
             }
