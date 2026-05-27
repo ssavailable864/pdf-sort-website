@@ -18,7 +18,7 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
 # -----------------------------
-# BARCODE DETECTOR (Optimized)
+# ADVANCED BARCODE DETECTOR (Enhanced)
 # -----------------------------
 def get_sku_from_barcode(image_bytes):
     try:
@@ -27,12 +27,29 @@ def get_sku_from_barcode(image_bytes):
         if img is None:
             return None
         
+        # 1. Direct try karo (Original Image)
         barcodes = decode(img)
         for barcode in barcodes:
             return barcode.data.decode("utf-8").strip()
+            
+        # 2. Agar nahi mila, toh image ko Grayscale aur B&W (Threshold) karo taaki barcode clear ho jaye
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        _, thresh = cv2.threshold(gray, 127, 255, cv2.THRESH_BINARY)
+        
+        barcodes = decode(thresh)
+        for barcode in barcodes:
+            return barcode.data.decode("utf-8").strip()
+
+        # 3. Ek aur try: Sharpening (agar barcode blur hai)
+        kernel = np.array([[0, -1, 0], [-1, 5, -1], [0, -1, 0]])
+        sharpened = cv2.filter2D(gray, -1, kernel)
+        barcodes = decode(sharpened)
+        for barcode in barcodes:
+            return barcode.data.decode("utf-8").strip()
+
     except Exception as e:
         print(f"Barcode error: {e}")
-        return "UNKNOWN"
+        return None
     return None
 
 # -----------------------------
@@ -60,46 +77,32 @@ def upload():
     def stream():
         yield json.dumps({"step": "Uploading PDF", "progress": 5}) + "\n"
         
-        # Open source PDF
         doc = fitz.open(filepath)
         total_pages = len(doc)
-        
-        # grouped[sku] = [page_num1, page_num2, ...] -> RAM mein sirf numbers save honge, images nahi!
         grouped = defaultdict(list)
 
         yield json.dumps({"step": "Reading PDF Pages", "progress": 10}) + "\n"
 
         # -----------------------------
-        # PAGE PROCESSING (Low RAM)
+        # PAGE PROCESSING
         # -----------------------------
         for i in range(total_pages):
             page = doc.load_page(i)
             sku = None
 
-            # Try to get embedded images first (Fastest & lowest RAM)
-            image_list = page.get_images(full=True)
-            if image_list:
-                try:
-                    xref = image_list[0][0] # Get the first image on the page
-                    base_image = doc.extract_image(xref)
-                    img_bytes = base_image["image"]
-                    sku = get_sku_from_barcode(img_bytes)
-                except:
-                    sku = None
-
-            # Fallback: Agar embedded image nahi mili ya barcode nahi mila, tabhi kam DPI par page render karo
-            if not sku:
-                try:
-                    pix = page.get_pixmap(dpi=120) # 200 se ghata kar 120 kiya taaki RAM na bhare
-                    img_bytes = pix.tobytes("png")
-                    sku = get_sku_from_barcode(img_bytes)
-                except:
-                    sku = "UNKNOWN"
+            # Render page at 150 DPI (Good balance between RAM and Clarity)
+            try:
+                pix = page.get_pixmap(dpi=150) 
+                img_bytes = pix.tobytes("png")
+                sku = get_sku_from_barcode(img_bytes)
+            except Exception as e:
+                print(f"Page render error at page {i}: {e}")
+                sku = "UNKNOWN"
 
             if not sku:
                 sku = "UNKNOWN"
 
-            grouped[sku].append(i) # Store ONLY page index
+            grouped[sku].append(i)
 
             progress = int(((i + 1) / total_pages) * 60) + 10
             yield json.dumps({
@@ -114,30 +117,28 @@ def upload():
         sorted_keys = sorted(grouped.keys(), key=lambda x: (x == "UNKNOWN", x))
 
         # -----------------------------
-        # PDF GENERATION (Super Fast Page Copy)
+        # PDF GENERATION
         # -----------------------------
         yield json.dumps({"step": "Generating Output PDF", "progress": 85}) + "\n"
         
-        out_doc = fitz.open() # Create blank PDF
+        out_doc = fitz.open()
         output_file = os.path.join(OUTPUT_FOLDER, "SORTED_" + file.filename)
 
         for sku in sorted_keys:
             page_indices = grouped[sku]
             
-            # 1. Asli PDF se direct pages copy karo (No quality loss, 0 RAM impact)
+            # Original pages copy karo
             out_doc.insert_pdf(doc, from_page=page_indices[0], to_page=page_indices[-1], select=page_indices)
             
-            # 2. SKU Summary Page add karo
-            summary_page = out_doc.new_page(width=595, height=842) # A4 size
-            # Text write karne ke liye insert_text use karein
-            summary_page.insert_text((180, 400), f"SKU: {sku}", fontsize=26, fontname="helv-bold")
-            summary_page.insert_text((180, 450), f"TOTAL: {len(page_indices)}", fontsize=26, fontname="helv-bold")
+            # SKU Separator Page
+            summary_page = out_doc.new_page(width=595, height=842)
+            summary_page.insert_text((150, 400), f"SKU: {sku}", fontsize=24, fontname="helv-bold")
+            summary_page.insert_text((150, 440), f"TOTAL LABELS: {len(page_indices)}", fontsize=20, fontname="helv")
 
         out_doc.save(output_file, garbage=3, deflate=True)
         out_doc.close()
         doc.close()
 
-        # Delete original uploaded file to save disk space on Render
         if os.path.exists(filepath):
             os.remove(filepath)
 
