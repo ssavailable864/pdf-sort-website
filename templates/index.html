@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Meesho PDF SKU Sorter</title>
-    <!-- PDF.js for Reading & PDF-Lib for Writing (100% Client Side) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
     <style>
@@ -180,12 +179,10 @@
 </head>
 <body>
 
-    <!-- Top Moving Text Line inside Dark Navy Bar -->
     <div class="marquee-container">
         <div class="marquee-text">Developed by Waghmare Small Service &nbsp;&bull;&nbsp; Premium PDF Automation Tool &nbsp;&bull;&nbsp; Developed by Waghmare Small Service</div>
     </div>
 
-    <!-- Center White Box -->
     <div class="main-card">
         <div class="header-container">
             <h2>Meesho PDF SKU Sorter</h2>
@@ -272,38 +269,44 @@
                     return a.localeCompare(b);
                 });
 
-                statusDiv.innerText = "Generating Master Summary & Sorted PDF...";
+                statusDiv.innerText = "Generating Master Summary Page...";
                 
                 // Load for writing/copying pages
                 const srcPdfDoc = await PDFLib.PDFDocument.load(arrayBuffer);
                 const outPdfDoc = await PDFLib.PDFDocument.create();
 
                 // -----------------------------------------------------------------------
-                // NEW FEATURE: ADD MASTER SUMMARY PAGE AT THE VERY BEGINNING OF THE PDF
+                // FIXED & CLEAN MASTER SUMMARY PAGE (No Overlapping Bug)
                 // -----------------------------------------------------------------------
-                const masterSummaryPage = outPdfDoc.addPage([595, 842]); // A4 size
+                let masterSummaryPage = outPdfDoc.addPage([595, 842]); // A4 Size
                 
-                // Draw Header for Master Summary Page
-                masterSummaryPage.drawText("ALL SKU TOTAL LABELS SUMMARY", { x: 50, y: 780, size: 22, color: PDFLib.rgb(0, 0.44, 1) });
-                masterSummaryPage.drawText("-----------------------------------------------------------------", { x: 50, y: 760, size: 14, color: PDFLib.rgb(0.5, 0.5, 0.5) });
+                // Header Titles
+                masterSummaryPage.drawText("ALL SKU TOTAL LABELS SUMMARY", { x: 50, y: 790, size: 20, color: PDFLib.rgb(0, 0.44, 1) });
+                masterSummaryPage.drawText("----------------------------------------------------------------------------------", { x: 50, y: 770, size: 12, color: PDFLib.rgb(0.7, 0.7, 0.7) });
 
-                let currentY = 720;
+                let currentY = 730; // Clean starting point below headers
+                
                 for (let sku of sortedKeys) {
                     let totalLabels = grouped[sku].length;
                     
-                    // Line text formatting exactly as requested
-                    let lineTextSku = `SKU: ${sku}`;
-                    let lineTextTotal = `TOTAL LABELS: ${totalLabels}`;
+                    // Single-line clean text construction to prevent text-stacking
+                    let lineCombinedText = `SKU: ${sku.padEnd(25, ' ')}  |  TOTAL LABELS: ${totalLabels}`;
                     
-                    masterSummaryPage.drawText(lineTextSku, { x: 60, y: currentY, size: 15, color: PDFLib.rgb(0.1, 0.1, 0.1) });
-                    masterSummaryPage.drawText(lineTextTotal, { x: 60, y: currentY - 20, size: 13, color: PDFLib.rgb(0.4, 0.4, 0.4) });
+                    masterSummaryPage.drawText(lineCombinedText, { 
+                        x: 60, 
+                        y: currentY, 
+                        size: 14, 
+                        color: PDFLib.rgb(0.15, 0.15, 0.15) 
+                    });
                     
-                    currentY -= 55; // Move down for the next pair
+                    currentY -= 35; // Move down cleanly for the next row
 
-                    // Handle edge case if there are too many SKUs (create a second index page if needed)
-                    if (currentY < 60) {
-                        const extraSummaryPage = outPdfDoc.addPage([595, 842]);
-                        currentY = 780;
+                    // If summary overflows the page, smoothly add a new index page
+                    if (currentY < 50) {
+                        masterSummaryPage = outPdfDoc.addPage([595, 842]);
+                        masterSummaryPage.drawText("ALL SKU TOTAL LABELS SUMMARY (Contd.)", { x: 50, y: 790, size: 20, color: PDFLib.rgb(0, 0.44, 1) });
+                        masterSummaryPage.drawText("----------------------------------------------------------------------------------", { x: 50, y: 770, size: 12, color: PDFLib.rgb(0.7, 0.7, 0.7) });
+                        currentY = 730;
                     }
                 }
 
