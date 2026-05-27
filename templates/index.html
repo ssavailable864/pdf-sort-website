@@ -182,7 +182,7 @@
 
     <!-- Top Moving Text Line inside Dark Navy Bar -->
     <div class="marquee-container">
-        <div class="marquee-text">Developed by Waghmare Small Service &nbsp;&bull;&nbsp;  PDF Automation Tool &nbsp;&bull;&nbsp; Developed by Waghmare Small Service</div>
+        <div class="marquee-text">Developed by Waghmare Small Service &nbsp;&bull;&nbsp; Premium PDF Automation Tool &nbsp;&bull;&nbsp; Developed by Waghmare Small Service</div>
     </div>
 
     <!-- Center White Box -->
@@ -272,13 +272,42 @@
                     return a.localeCompare(b);
                 });
 
-                statusDiv.innerText = "Generating Sorted PDF in Browser (Hold on)...";
+                statusDiv.innerText = "Generating Master Summary & Sorted PDF...";
                 
                 // Load for writing/copying pages
                 const srcPdfDoc = await PDFLib.PDFDocument.load(arrayBuffer);
                 const outPdfDoc = await PDFLib.PDFDocument.create();
 
-                // 2. BUILD NEW PDF
+                // -----------------------------------------------------------------------
+                // NEW FEATURE: ADD MASTER SUMMARY PAGE AT THE VERY BEGINNING OF THE PDF
+                // -----------------------------------------------------------------------
+                const masterSummaryPage = outPdfDoc.addPage([595, 842]); // A4 size
+                
+                // Draw Header for Master Summary Page
+                masterSummaryPage.drawText("ALL SKU TOTAL LABELS SUMMARY", { x: 50, y: 780, size: 22, color: PDFLib.rgb(0, 0.44, 1) });
+                masterSummaryPage.drawText("-----------------------------------------------------------------", { x: 50, y: 760, size: 14, color: PDFLib.rgb(0.5, 0.5, 0.5) });
+
+                let currentY = 720;
+                for (let sku of sortedKeys) {
+                    let totalLabels = grouped[sku].length;
+                    
+                    // Line text formatting exactly as requested
+                    let lineTextSku = `SKU: ${sku}`;
+                    let lineTextTotal = `TOTAL LABELS: ${totalLabels}`;
+                    
+                    masterSummaryPage.drawText(lineTextSku, { x: 60, y: currentY, size: 15, color: PDFLib.rgb(0.1, 0.1, 0.1) });
+                    masterSummaryPage.drawText(lineTextTotal, { x: 60, y: currentY - 20, size: 13, color: PDFLib.rgb(0.4, 0.4, 0.4) });
+                    
+                    currentY -= 55; // Move down for the next pair
+
+                    // Handle edge case if there are too many SKUs (create a second index page if needed)
+                    if (currentY < 60) {
+                        const extraSummaryPage = outPdfDoc.addPage([595, 842]);
+                        currentY = 780;
+                    }
+                }
+
+                // 2. BUILD THE REST OF THE PDF (SAME AS BEFORE)
                 for (let k = 0; k < sortedKeys.length; k++) {
                     let sku = sortedKeys[k];
                     let pageIndices = grouped[sku];
@@ -341,7 +370,7 @@
                 
                 if (currentLine === "SKU" || currentLine.startsWith("SKU ")) {
                     if (i + 1 < lines.length) {
-                        let candidate = lines[i + 1].trim();
+                        let candidate = lines[i+1].trim();
                         let cleanCand = candidate.replace(/[:,-]/g, '');
                         let upperCand = cleanCand.toUpperCase();
 
