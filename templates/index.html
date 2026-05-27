@@ -19,8 +19,8 @@
 </head>
 <body>
 
-    <h2>Bhai ka PDF SKU Sorter (All-Format Master Edition)</h2>
-    <p>Ab teenom types (Underscore, Pure Numbers 108... aur APCD07) ek sath mast sort honge!</p>
+    <h2>Bhai ka PDF SKU Sorter (Block-Anchor Edition)</h2>
+    <p>Ab address wale 'Sector91' block honge aur strictly SKU heading ke paas se hi core SKU uthaya jayega!</p>
     
     <div class="upload-box" onclick="document.getElementById('pdfFile').click()">
         <p>Click here to upload your Shipping PDF</p>
@@ -158,50 +158,71 @@
             progressFill.innerText = value + '%';
         }
 
-        // THREE-WAY TARGETED MATCHING
+        // ANCHOR EXTRACTION: ONLY EXTRACT TRULY RELEVANT STRINGS NEAR THE "SKU" BLOCK
         function extractSkuFromText(text) {
             if (!text) return "UNKNOWN";
 
+            // Lines and exact words split
+            const lines = text.split('\n').map(l => l.trim()).filter(l => l);
             const words = text.split(/[\s\n\t]+/).map(w => w.trim()).filter(w => w);
-            const ignoreList = ["SHADOWFAX", "XPRESS", "DELHIVERY", "EKART", "AMAZON", "BLUEDART", "GSTIN", "INVOICE", "AWB", "TRACKING", "ORDER"];
 
-            // ---------------------------------------------------------
-            // PRIORITY 1: Underscore SKU Match (Jaise: 1501231043_37, 188042787_70)
-            // ---------------------------------------------------------
+            // -----------------------------------------------------------------------
+            // PRIORITY 1: STRICT ANCHORING (Look exactly under or next to "SKU" text)
+            // -----------------------------------------------------------------------
+            for (let i = 0; i < lines.length; i++) {
+                let currentLine = lines[i].toUpperCase();
+                
+                // Agar exact line sirf "SKU" hai ya uski shuruat "SKU" se ho rhi h
+                if (currentLine === "SKU" || currentLine.startsWith("SKU ")) {
+                    // Check next line or tokens immediately below
+                    if (i + 1 < lines.length) {
+                        let candidate = lines[i + 1].trim();
+                        let cleanCand = candidate.replace(/[:,-]/g, '');
+                        let upperCand = cleanCand.toUpperCase();
+
+                        // Agar candidate target SKU structures ke rules par sateek baithta h
+                        if (
+                            /^\d+_\d+$/.test(candidate) && !candidate.endsWith('_1') && !candidate.endsWith('_2') || // Format: 1403620329_44
+                            /^\d{8,11}$/.test(candidate) && candidate.startsWith("108") ||                          // Format: 108123407
+                            /^[A-Z]{2,6}[0-9]{2,6}$/i.test(cleanCand) && !upperCand.startsWith("FUUNG")            // Format: APCD07
+                        ) {
+                            return candidate;
+                        }
+                    }
+                }
+            }
+
+            // -----------------------------------------------------------------------
+            // PRIORITY 2: DIRECT SCAN PATTERN FALLBACKS (If lines array sequence varies)
+            // -----------------------------------------------------------------------
+            // 1. Long Underscore SKUs (e.g., 188042787_70)
             for (let word of words) {
                 let matchUnderscore = word.match(/\d+_\d+/);
                 if (matchUnderscore) {
                     let fullMatch = matchUnderscore[0];
-                    // _1 ya _2 waale order codes ko block rakho
                     if (!fullMatch.endsWith('_1') && !fullMatch.endsWith('_2')) {
                         return fullMatch;
                     }
                 }
             }
 
-            // ---------------------------------------------------------
-            // PRIORITY 2: Pure Numeric SKU Match (Jaise: 108123407, 108123439)
-            // ---------------------------------------------------------
+            // 2. Pure Numeric 108 series SKUs (e.g., 108123407)
             for (let word of words) {
-                // Rule: Pure number hona chahiye, length 8 se 10 digit, aur 108 se shuru ho
                 if (/^\d{8,11}$/.test(word) && word.startsWith("108")) {
                     return word;
                 }
             }
 
-            // ---------------------------------------------------------
-            // PRIORITY 3: Alphanumeric Format Direct Hit (Jaise: APCD07)
-            // ---------------------------------------------------------
+            // 3. Precise Alphanumeric SKU (e.g., APCD07) - strictly filtered to reject sector/address names
             for (let word of words) {
                 let cleanWord = word.replace(/[:,-]/g, '');
                 let upperWord = cleanWord.toUpperCase();
 
-                if (ignoreList.some(keyword => upperWord.includes(keyword)) || upperWord.length > 15) continue;
+                // Exclude common address keywords like "SECTOR" to prevent picking "Sector91"
+                if (upperWord.includes("SECTOR") || upperWord.includes("FUUNG") || upperWord.length > 12) continue;
 
                 if (/^[A-Z]{2,6}[0-9]{2,6}$/i.test(cleanWord)) {
-                    if (!cleanWord.toUpperCase().startsWith("FUUNG")) {
-                        return cleanWord;
-                    }
+                    return cleanWord;
                 }
             }
 
