@@ -15,6 +15,9 @@
         .progress-bar { width: 100%; background-color: #f3f3f3; border-radius: 4px; margin-top: 10px; }
         .progress-bar-fill { height: 20px; width: 0%; background-color: #28a745; text-align: center; line-height: 20px; color: white; border-radius: 4px; transition: width 0.2s; font-size: 12px; }
         #status { font-weight: bold; margin-bottom: 5px; color: #333; }
+        .config-box { margin-bottom: 20px; background: #e9ecef; padding: 15px; border-radius: 6px; }
+        .config-box label { font-weight: bold; display: block; margin-bottom: 5px; }
+        .config-box input { width: 95%; padding: 8px; font-size: 16px; border: 1px solid #ccc; border-radius: 4px; text-transform: uppercase; }
     </style>
 </head>
 <body>
@@ -22,6 +25,12 @@
     <h2>Bhai ka PDF SKU Sorter (Super-Fast Browser Edition)</h2>
     <p>Ab 100-200 pages bhi bina kisi server error ke direct computer par sort honge!</p>
     
+    <div class="config-box">
+        <label for="skuPrefix">SKU kis akshar se shuru hota hai? (Prefix):</label>
+        <input type="text" id="skuPrefix" value="AP" placeholder="Jaise: AP">
+        <small style="color: #666; display: block; margin-top: 5px;">System sirf is akshar se shuru hone wale codes ko hi SKU manega. Baaki sab ignore kar dega.</small>
+    </div>
+
     <div class="upload-box" onclick="document.getElementById('pdfFile').click()">
         <p>Click here to upload your Shipping PDF</p>
         <input type="file" id="pdfFile" accept="application/pdf" style="display:none">
@@ -46,6 +55,7 @@
         const progressBox = document.getElementById('progress-box');
         const progressFill = document.getElementById('progress-fill');
         const statusDiv = document.getElementById('status');
+        const skuPrefixInput = document.getElementById('skuPrefix');
 
         let selectedFile = null;
 
@@ -66,6 +76,9 @@
             statusDiv.innerText = "Reading PDF File...";
             updateProgress(5);
 
+            // Get user defined prefix
+            const targetPrefix = skuPrefixInput.value.trim().toUpperCase() || "AP";
+
             try {
                 const arrayBuffer = await selectedFile.arrayBuffer();
                 
@@ -83,7 +96,7 @@
                     const textContent = await page.getTextContent();
                     const pageText = textContent.items.map(item => item.str).join('\n');
                     
-                    let sku = extractSkuFromText(pageText);
+                    let sku = extractSkuFromText(pageText, targetPrefix);
                     
                     if (!grouped[sku]) grouped[sku] = [];
                     grouped[sku].push(i - 1); // 0-based page index
@@ -158,68 +171,31 @@
             progressFill.innerText = value + '%';
         }
 
-        // COURIER/NAME FILTERING LOGIC FOR APCD07 FORMAT
-        function extractSkuFromText(text) {
+        // PERFECT MATCH VIA USER DEFINE PREFIX (E.G. AP)
+        function extractSkuFromText(text, prefix) {
             if (!text) return "UNKNOWN";
 
+            // Saare extra spaces aur line breaks ko normalise karo
+            const words = text.split(/[\s\n\t]+/).map(w => w.trim().replace(/[:,-]/g, '')).filter(w => w);
+
+            // Pure page par check karo ki kya koi aisa word hai jo user ke diye prefix se shuru hota ho
+            for (let word of words) {
+                let upperWord = word.toUpperCase();
+                
+                // Agar word humare target prefix se shuru ho raha hai (Jaise APCD07 starts with AP)
+                if (upperWord.startsWith(prefix)) {
+                    // Check ki isme alphabets ke sath numbers bhi hain (Faltu pure text ko filter karne ke liye)
+                    if (/[0-9]/.test(upperWord) && upperWord.length >= 4 && upperWord.length <= 12) {
+                        return word; // Exact original sku return karo
+                    }
+                }
+            }
+
+            // Fallback backup agar direct prefix match kisi vajah se miss ho jaye
             const lines = text.split('\n').map(l => l.trim()).filter(l => l);
-            
-            // Known Courier and system keywords to absolutely ignore
-            const ignoreList = ["SHADOWFAX", "XPRESS BEES", "XPRESSBEES", "DELHIVERY", "EKART", "AMAZON", "BLUEDART", "COURIER", "AWB", "TRACKING", "ORDER", "SIZE", "QTY", "QUANTITY", "PRICE", "TOTAL", "SHIPMENT", "CUSTOMER"];
-
-            // 1. FIRST PRIORITY: Check for explicit SKU identifier lines
             for (let i = 0; i < lines.length; i++) {
-                let currentLine = lines[i].toUpperCase();
-                
-                if (currentLine === "SKU") {
-                    if (i + 1 < lines.length) {
-                        let potentialSku = lines[i + 1].trim();
-                        let cleanPot = potentialSku.toUpperCase();
-                        
-                        // Validation check against ignore list
-                        if (potentialSku.length >= 3 && !ignoreList.some(keyword => cleanPot.includes(keyword))) {
-                            return potentialSku;
-                        }
-                    }
-                }
-                
-                if (currentLine.includes("SKU") && currentLine.length > 3) {
-                    let match = lines[i].match(/SKU[\s:]*([\w\d_-]+)/i);
-                    if (match && match[1].length >= 3) {
-                        let extracted = match[1].trim();
-                        if (!ignoreList.some(keyword => extracted.toUpperCase().includes(keyword))) {
-                            return extracted;
-                        }
-                    }
-                }
-            }
-
-            // 2. SECOND PRIORITY: Alphanumeric signature matching (e.g., APCD07)
-            // Dhoodho: Shuruat mein letters (2-6 chars) aur piche numbers (2-6 chars)
-            for (let line of lines) {
-                let cleaned = line.replace(/[\s\t]/g, '');
-                let cleanUpper = cleaned.toUpperCase();
-
-                // Courier filter
-                if (ignoreList.some(keyword => cleanUpper.includes(keyword)) || cleanUpper.includes("GSTIN")) continue;
-
-                // Pattern: Letters followed by digits (e.g., APCD07 or AP-07)
-                let alphaNumMatch = cleaned.match(/^[A-Z]{2,6}[0-9]{2,6}$/i) || cleaned.match(/^[A-Z]{2,6}[_-][0-9]{2,6}$/i);
-                if (alphaNumMatch) {
-                    return line.trim();
-                }
-            }
-
-            // 3. THIRD PRIORITY: General mixed alphanumeric code fallback (Strict Length check)
-            for (let line of lines) {
-                let cleaned = line.replace(/[\s\t]/g, '');
-                let cleanUpper = cleaned.toUpperCase();
-
-                if (ignoreList.some(keyword => cleanUpper.includes(keyword)) || cleanUpper.includes("GSTIN") || cleaned.length === 15) continue;
-
-                // Must contain both letters and numbers, length 4 to 10
-                if (/[A-Z]/i.test(cleaned) && /[0-9]/.test(cleaned) && cleaned.length >= 4 && cleaned.length <= 10) {
-                    return line.trim();
+                if (lines[i].toUpperCase() === "SKU" && i + 1 < lines.length) {
+                    return lines[i + 1].trim();
                 }
             }
 
