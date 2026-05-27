@@ -21,12 +21,12 @@
             box-sizing: border-box;
         }
 
-        /* Top Moving Text Line (Styled for Dark Background) */
+        /* Top Moving Text Line */
         .marquee-container {
             width: 100%;
             max-width: 650px;
             overflow: hidden;
-            background: #112240; /* Darker navy block to blend with bg */
+            background: #112240; 
             border-radius: 20px;
             padding: 8px 0;
             margin-bottom: 20px;
@@ -38,7 +38,7 @@
             display: inline-block;
             white-space: nowrap;
             font-size: 13px;
-            color: #64ffda; /* Neon Cyan text that pops in dark mode */
+            color: #64ffda; 
             font-weight: 700;
             letter-spacing: 1.5px;
             text-transform: uppercase;
@@ -70,9 +70,8 @@
             padding-bottom: 20px;
         }
 
-        /* Unique Luxury Color Scheme for the Header */
         h2 { 
-            background: linear-gradient(135deg, #0072ff 0%, #00c6ff 100%); /* Electric Sapphire Gradient */
+            background: linear-gradient(135deg, #0072ff 0%, #00c6ff 100%); 
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             margin: 0;
@@ -81,7 +80,6 @@
             letter-spacing: -0.5px;
         }
 
-        /* Dotted Upload Box tweaked to match the theme */
         .upload-box { 
             border: 2px dashed #0072ff; 
             padding: 50px 20px; 
@@ -105,7 +103,6 @@
             font-weight: 600;
         }
 
-        /* Matching Button Gradient */
         .btn { 
             background: linear-gradient(135deg, #0072ff 0%, #0052cc 100%); 
             color: white; 
@@ -276,11 +273,10 @@
                 const outPdfDoc = await PDFLib.PDFDocument.create();
 
                 // -----------------------------------------------------------------------
-                // FIXED TWO-COLUMN COORD-BASED SUMMARY PAGE (NO INTERSECTION / BUG FREE)
+                // MASTER SUMMARY PAGE WITH ABSOLUTE X COORDINATES
                 // -----------------------------------------------------------------------
-                let masterSummaryPage = outPdfDoc.addPage([595, 842]); // A4 Size
+                let masterSummaryPage = outPdfDoc.addPage([595, 842]); 
                 
-                // Header Titles
                 masterSummaryPage.drawText("ALL SKU TOTAL LABELS SUMMARY", { x: 50, y: 790, size: 20, color: PDFLib.rgb(0, 0.44, 1) });
                 masterSummaryPage.drawText("----------------------------------------------------------------------------------", { x: 50, y: 770, size: 12, color: PDFLib.rgb(0.7, 0.7, 0.7) });
 
@@ -289,7 +285,6 @@
                 for (let sku of sortedKeys) {
                     let totalLabels = grouped[sku].length;
                     
-                    // Column 1: SKU text printed at x=60
                     masterSummaryPage.drawText(`SKU: ${sku}`, { 
                         x: 60, 
                         y: currentY, 
@@ -297,7 +292,6 @@
                         color: PDFLib.rgb(0.1, 0.1, 0.1) 
                     });
 
-                    // Column 2: TOTAL LABELS strictly hardcoded at x=350 to ensure zero overlapping
                     masterSummaryPage.drawText(`|   TOTAL LABELS: ${totalLabels}`, { 
                         x: 350, 
                         y: currentY, 
@@ -305,9 +299,8 @@
                         color: PDFLib.rgb(0.3, 0.4, 0.6) 
                     });
                     
-                    currentY -= 28; // Clean vertical row spacing
+                    currentY -= 28; 
 
-                    // Page boundary guard
                     if (currentY < 50) {
                         masterSummaryPage = outPdfDoc.addPage([595, 842]);
                         masterSummaryPage.drawText("ALL SKU TOTAL LABELS SUMMARY (Contd.)", { x: 50, y: 790, size: 20, color: PDFLib.rgb(0, 0.44, 1) });
@@ -316,19 +309,17 @@
                     }
                 }
 
-                // 2. BUILD THE REST OF THE PDF (SAME AS BEFORE)
+                // 2. BUILD THE REST OF THE PDF
                 for (let k = 0; k < sortedKeys.length; k++) {
                     let sku = sortedKeys[k];
                     let pageIndices = grouped[sku];
 
                     statusDiv.innerText = `Stitching SKU: ${sku} (${pageIndices.length} Labels)...`;
 
-                    // Copy original label pages
                     const copiedPages = await outPdfDoc.copyPages(srcPdfDoc, pageIndices);
                     copiedPages.forEach(page => outPdfDoc.addPage(page));
 
-                    // Add Summary Separator Page
-                    const summaryPage = outPdfDoc.addPage([595, 842]); // A4 Size
+                    const summaryPage = outPdfDoc.addPage([595, 842]); 
                     
                     summaryPage.drawText(`SKU: ${sku}`, { x: 100, y: 500, size: 26 });
                     summaryPage.drawText(`TOTAL LABELS: ${pageIndices.length}`, { x: 100, y: 450, size: 22 });
@@ -340,7 +331,6 @@
                 statusDiv.innerText = "Finalizing PDF Download...";
                 updateProgress(98);
 
-                // Save and triggers download directly from browser
                 const pdfBytes = await outPdfDoc.save();
                 const blob = new Blob([pdfBytes], { type: "application/pdf" });
                 const link = document.createElement('a');
@@ -366,25 +356,27 @@
             progressFill.innerText = value + '%';
         }
 
-        // ANCHOR EXTRACTION: ONLY EXTRACT TRULY RELEVANT STRINGS NEAR THE "SKU" BLOCK
+        // UPGRADED EXTRACTION ENGINE: ADDRESS BOX KA GARBAGE FILTER KARNE KE LIYE
         function extractSkuFromText(text) {
             if (!text) return "UNKNOWN";
 
             const lines = text.split('\n').map(l => l.trim()).filter(l => l);
             const words = text.split(/[\s\n\t]+/).map(w => w.trim()).filter(w => w);
 
-            // PRIORITY 1: STRICT ANCHORING (Look exactly under or next to "SKU" text)
+            // PRIORITY 1: STRICT ANCHORING (Product Details block ke andar "SKU" text ke niche check karna)
             for (let i = 0; i < lines.length; i++) {
                 let currentLine = lines[i].toUpperCase();
                 
+                // Agar line "SKU" se start ho rahi hai ya exact "SKU" hai
                 if (currentLine === "SKU" || currentLine.startsWith("SKU ")) {
                     if (i + 1 < lines.length) {
                         let candidate = lines[i+1].trim();
                         let cleanCand = candidate.replace(/[:,-]/g, '');
                         let upperCand = cleanCand.toUpperCase();
 
+                        // Agar exact product SKU milta hai (bada underscore pattern ya numeric sequence)
                         if (
-                            /^\d+_\d+$/.test(candidate) && !candidate.endsWith('_1') && !candidate.endsWith('_2') || 
+                            /^\d+_\d+$/.test(candidate) && candidate.length > 6 || 
                             /^\d{8,11}$/.test(candidate) && candidate.startsWith("108") ||                          
                             /^[A-Z]{2,6}[0-9]{2,6}$/i.test(cleanCand) && !upperCand.startsWith("FUUNG")            
                         ) {
@@ -394,23 +386,26 @@
                 }
             }
 
-            // PRIORITY 2: DIRECT SCAN PATTERN FALLBACKS
+            // PRIORITY 2: INTELLIGENT BACKUP SCAN (Chote fake codes filter karne ke liye - length logic mandatory)
             for (let word of words) {
                 let matchUnderscore = word.match(/\d+_\d+/);
                 if (matchUnderscore) {
                     let fullMatch = matchUnderscore[0];
-                    if (!fullMatch.endsWith('_1') && !fullMatch.endsWith('_2')) {
+                    // Agar underscore wale number ki length choti hai (jaise 4_15), toh skip karo, vo address hai! Asli SKU hamesha bada hoga
+                    if (fullMatch.length > 5 && !fullMatch.endsWith('_1') && !fullMatch.endsWith('_2')) {
                         return fullMatch;
                     }
                 }
             }
 
+            // Fallback checking for long 108 series codes
             for (let word of words) {
                 if (/^\d{8,11}$/.test(word) && word.startsWith("108")) {
                     return word;
                 }
             }
 
+            // Fallback matching for Alphanumeric tracking/SKU signatures
             for (let word of words) {
                 let cleanWord = word.replace(/[:,-]/g, '');
                 let upperWord = cleanWord.toUpperCase();
