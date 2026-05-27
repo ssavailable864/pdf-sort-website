@@ -19,8 +19,8 @@
 </head>
 <body>
 
-    <h2>Bhai ka PDF SKU Sorter (Final Precision Edition)</h2>
-    <p>Ab Order IDs (_1 wale) 100% block honge aur sirf sateek SKU sort honge!</p>
+    <h2>Bhai ka PDF SKU Sorter (Underscore Precision Edition)</h2>
+    <p>Ab fuung waale fasaane wale codes filter ho jayenge aur exact long underscore SKU sort honge!</p>
     
     <div class="upload-box" onclick="document.getElementById('pdfFile').click()">
         <p>Click here to upload your Shipping PDF</p>
@@ -158,59 +158,43 @@
             progressFill.innerText = value + '%';
         }
 
-        // ULTRA PRECISION EXTRACTION LOGIC
+        // ULTRA SPECIFIC TARGETING LOGIC FOR UNDERSCORE SKUs
         function extractSkuFromText(text) {
             if (!text) return "UNKNOWN";
 
+            // Saare extra spacing aur lines ko saaf karke words nikalo
             const words = text.split(/[\s\n\t]+/).map(w => w.trim()).filter(w => w);
-            const ignoreList = ["SHADOWFAX", "XPRESS", "DELHIVERY", "EKART", "AMAZON", "BLUEDART", "GSTIN", "INVOICE", "AWB", "TRACKING", "ORDER"];
 
             // ---------------------------------------------------------
-            // PRIORITY 1: Target Alpha Format Direct Hit (e.g., APCD07)
+            // PRIORITY 1: Long Underscore SKU Match (Jaise: 1501231043_37, 188042787_70)
+            // ---------------------------------------------------------
+            for (let word of words) {
+                // Regex matches any long digits followed by underscore and short digits
+                let matchUnderscore = word.match(/\d+_\d+/);
+                
+                if (matchUnderscore) {
+                    let fullMatch = matchUnderscore[0];
+                    
+                    // CRITICAL FILTER: Agar ye barcode ID ya order ID h jo _1 ya _2 pr khatam ho rhi h, to ise reject karo!
+                    if (fullMatch.endsWith('_1') || fullMatch.endsWith('_2')) {
+                        continue; 
+                    }
+                    
+                    // Agar valid underscore SKU hai to direct return karo
+                    return fullMatch;
+                }
+            }
+
+            // ---------------------------------------------------------
+            // PRIORITY 2: Alphanumeric Sku Backup Hit (Jaise: APCD07)
             // ---------------------------------------------------------
             for (let word of words) {
                 let cleanWord = word.replace(/[:,-]/g, '');
-                let upperWord = cleanWord.toUpperCase();
-
-                if (ignoreList.some(keyword => upperWord.includes(keyword)) || upperWord.length > 15) continue;
-
-                // Precision match: Alphabet prefix (2-6 chars) followed by digits (2-6 chars)
-                let alphaNumPrecision = cleanWord.match(/^[A-Z]{2,6}[0-9]{2,6}$/i);
-                if (alphaNumPrecision) {
-                    return cleanWord; // Exact APCD07 format
-                }
-            }
-
-            // ---------------------------------------------------------
-            // PRIORITY 2: Target Underscore Format Direct Hit (e.g., 1403620329_44)
-            // ---------------------------------------------------------
-            for (let word of words) {
-                // Rule: Must be digits_digits
-                let matchUnderscore = word.match(/^\d+_\d+$/);
                 
-                // CRITICAL BLOCK: Agar Underscore '_1' par khatam ho raha hai, toh use tracking id maan kar block karo!
-                if (matchUnderscore && !word.endsWith('_1')) {
-                    // Length validation to filter out extremely long order barcode ids
-                    if (word.length <= 16) {
-                        return matchUnderscore[0].trim();
-                    }
-                }
-            }
-
-            // ---------------------------------------------------------
-            // PRIORITY 3: Strict "SKU" label lookup fallbacks
-            // ---------------------------------------------------------
-            const lines = text.split('\n').map(l => l.trim()).filter(l => l);
-            for (let i = 0; i < lines.length; i++) {
-                let currentLine = lines[i].toUpperCase();
-                if (currentLine === "SKU" && i + 1 < lines.length) {
-                    let potential = lines[i + 1].trim();
-                    let upperPotential = potential.toUpperCase();
-
-                    if (potential.endsWith('_1')) continue;
-
-                    if (potential.length >= 3 && potential.length <= 12 && !["SIZE", "QTY", "PRICE"].includes(upperPotential)) {
-                        return potential;
+                // Pure characters jo strictly letters+numbers hon aur fuung jaisa generic invoice na ho
+                if (/^[A-Z]{2,6}[0-9]{2,6}$/i.test(cleanWord)) {
+                    if (!cleanWord.toUpperCase().startsWith("FUUNG")) {
+                        return cleanWord;
                     }
                 }
             }
