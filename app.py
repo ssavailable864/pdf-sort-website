@@ -1,12 +1,13 @@
 from flask import Flask, request, send_file, render_template, Response
 import fitz  # PyMuPDF
+from pypdf import PdfReader
 import os
 import io
 import cv2
 import numpy as np
 from collections import defaultdict
 import json
-import time
+import re
 
 app = Flask(__name__)
 
@@ -17,42 +18,54 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
 # -----------------------------
-# OPENCV BARCODE DETECTOR (No libzbar0 dependency)
+# BACKUP: BARCODE DETECTOR
 # -----------------------------
 def get_sku_from_barcode(image_bytes):
     try:
-        # Bytes ko image mein convert karein
         nparr = np.frombuffer(image_bytes, np.uint8)
         img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
         if img is None:
             return None
         
-        # OpenCV ka native barcode detector initialize karein
         detector = cv2.barcode.BarcodeDetector()
-        
-        # 1. Pehla Try: Original Image par
-        retval, decoded_info, decoded_type, _ = detector.detectAndDecode(img)
+        retval, decoded_info, _, _ = detector.detectAndDecode(img)
         if retval and decoded_info and decoded_info[0].strip():
             return decoded_info[0].strip()
             
-        # 2. Doosra Try: Image ko Grayscale aur B&W (Threshold) karke (For blurry/small barcodes)
+        # Try thresholding
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         _, thresh = cv2.threshold(gray, 127, 255, cv2.THRESH_BINARY)
-        
         retval, decoded_info, _, _ = detector.detectAndDecode(thresh)
         if retval and decoded_info and decoded_info[0].strip():
             return decoded_info[0].strip()
-
-        # 3. Teesra Try: Image Sharpening (Agar barcode lines dhundli hain)
-        kernel = np.array([[0, -1, 0], [-1, 5, -1], [0, -1, 0]])
-        sharpened = cv2.filter2D(gray, -1, kernel)
-        retval, decoded_info, _, _ = detector.detectAndDecode(sharpened)
-        if retval and decoded_info and decoded_info[0].strip():
-            return decoded_info[0].strip()
-
-    except Exception as e:
-        print(f"Barcode Detection Error: {e}")
+    except:
         return None
+    return None
+
+# -----------------------------
+# SMART TEXT/SKU EXTRACTOR
+# -----------------------------
+def extract_sku_from_text(page_text):
+    """
+    Yahan aap apne SKU ka pattern set kar sakte hain.
+    Abhi ke liye ye pure text mein se aam taur par dikhne wale SKU ya Barcode numbers dhoodhega.
+    """
+    if not page_text:
+        return None
+        
+    # Tarika 1: Agar text mein saaf saaf 'SKU:' ya 'SKU ' likha hai
+    sku_match = re.search(r'SKU[\s:]*([A-Z0-9_-]+)', page_text, re.IGNORECASE)
+    if sku_match:
+        return sku_match.group(1).strip()
+        
+    # Tarika 2: Har line ko check karo jo sirf uppercase alphanumeric ho (A-Z, 0-9)
+    lines = page_text.split('\n')
+    for line in lines:
+        cleaned = line.strip()
+        # Agar koi line 5 se 15 characters ki hai aur usme numbers/alphabets hain (Jaise: SKU12345, ITEM-01)
+        if 5 <= len(cleaned) <= 20 and re.match(r'^[A-Z0-9_-]+$', cleaned):
+            return cleaned
+            
     return None
 
 # -----------------------------
@@ -63,7 +76,7 @@ def home():
     return render_template("index.html")
 
 # -----------------------------
-# STREAM PROCESSING UPLOAD & SORT
+# STREAM PROCESSING UPLOAD
 # -----------------------------
 @app.route("/upload", methods=["POST"])
 def upload():
@@ -74,48 +87,56 @@ def upload():
     if file.filename == "":
         return "No file selected", 400
 
-    # Original PDF ko temporary save karein
     filepath = os.path.join(UPLOAD_FOLDER, file.filename)
     file.save(filepath)
 
     def stream():
         yield json.dumps({"step": "Uploading PDF", "progress": 5}) + "\n"
         
-        # Source PDF ko open karein
+        # Open with PyMuPDF for rendering/building
         doc = fitz.open(filepath)
         total_pages = len(doc)
         
-        # Dictionary jisme sirf page numbers store honge (RAM bachegi)
+        # Open with pypdf for clean text extraction
+        reader = PdfReader(filepath)
+        
         grouped = defaultdict(list)
 
-        yield json.dumps({"step": "Reading PDF Pages", "progress": 10}) + "\n"
+        yield json.dumps({"step": "Reading & Analysing PDF Pages", "progress": 10}) + "\n"
 
         # -----------------------------
         # PAGE PROCESSING LOOP
         # -----------------------------
         for i in range(total_pages):
-            page = doc.load_page(i)
             sku = None
-
-            # High-resolution (150 DPI) par page ki image banayein scanning ke liye
+            
+            # METHOD 1: Try Text Extraction (Super Fast, 100% Accurate if PDF has text)
             try:
-                pix = page.get_pixmap(dpi=150) 
-                img_bytes = pix.tobytes("png")
-                sku = get_sku_from_barcode(img_bytes)
+                pypdf_page = reader.pages[i]
+                text = pypdf_page.extract_text()
+                sku = extract_sku_from_text(text)
             except Exception as e:
-                print(f"Error rendering page {i}: {e}")
-                sku = "UNKNOWN"
+                print(f"Text extraction failed on page {i}: {e}")
 
+            # METHOD 2: Fallback to Barcode Detection (Agar text se nahi mila)
+            if not sku:
+                try:
+                    page = doc.load_page(i)
+                    pix = page.get_pixmap(dpi=150) 
+                    img_bytes = pix.tobytes("png")
+                    sku = get_sku_from_barcode(img_bytes)
+                except Exception as e:
+                    print(f"Image rendering failed on page {i}: {e}")
+
+            # Agar dono method se kuch nahi mila
             if not sku:
                 sku = "UNKNOWN"
 
-            # Sirf page index save karein, heavy image bytes nahi!
             grouped[sku].append(i)
 
-            # Progress percentage calculate karein (10% se 70% ke beech)
             progress = int(((i + 1) / total_pages) * 60) + 10
             yield json.dumps({
-                "step": f"Processing Page {i+1}/{total_pages} | SKU: {sku}",
+                "step": f"Processing Page {i+1}/{total_pages} | Detected: {sku}",
                 "progress": progress
             }) + "\n"
 
@@ -123,38 +144,34 @@ def upload():
         # SORTING DATA
         # -----------------------------
         yield json.dumps({"step": "Sorting SKU Data", "progress": 75}) + "\n"
-        # UNKNOWN waale pages ko sabse aakhiri mein rakhne ke liye sort logic
         sorted_keys = sorted(grouped.keys(), key=lambda x: (x == "UNKNOWN", x))
 
         # -----------------------------
-        # NEW PDF GENERATION (Fast & Lossless)
+        # NEW PDF GENERATION
         # -----------------------------
         yield json.dumps({"step": "Generating Output PDF", "progress": 85}) + "\n"
         
-        out_doc = fitz.open() # Naya blank PDF banayein
+        out_doc = fitz.open()
         output_file = os.path.join(OUTPUT_FOLDER, "SORTED_" + file.filename)
 
         for sku in sorted_keys:
-            page_indices = group = grouped[sku]
+            page_indices = grouped[sku]
             
-            # Direct original PDF se naye PDF mein bina quality loss ke pages copy karein
+            # Original pages ko stitch karein
             out_doc.insert_pdf(doc, from_page=page_indices[0], to_page=page_indices[-1], select=page_indices)
             
-            # Har SKU ke baad ek Separator/Summary Page lagayein
-            summary_page = out_doc.new_page(width=595, height=842) # A4 size standard
+            # Separator Page
+            summary_page = out_doc.new_page(width=595, height=842)
             summary_page.insert_text((150, 400), f"SKU: {sku}", fontsize=24, fontname="helv-bold")
             summary_page.insert_text((150, 440), f"TOTAL LABELS: {len(page_indices)}", fontsize=20, fontname="helv")
 
-        # PDF ko optimize karke save karein taaki size chota rahe
         out_doc.save(output_file, garbage=3, deflate=True)
         out_doc.close()
         doc.close()
 
-        # Kaam hone ke baad original heavy uploaded file delete karein space bachane ke liye
         if os.path.exists(filepath):
             os.remove(filepath)
 
-        # Frontend ko download link bheinjiye
         yield json.dumps({
             "step": "COMPLETED",
             "progress": 100,
@@ -173,8 +190,5 @@ def download(filename):
         return send_file(path, as_attachment=True)
     return "File Not Found", 404
 
-# -----------------------------
-# RUN APPLICATION
-# -----------------------------
 if __name__ == "__main__":
     app.run(debug=False)
