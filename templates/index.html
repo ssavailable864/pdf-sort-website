@@ -19,8 +19,8 @@
 </head>
 <body>
 
-    <h2>Bhai ka PDF SKU Sorter (Underscore Precision Edition)</h2>
-    <p>Ab fuung waale fasaane wale codes filter ho jayenge aur exact long underscore SKU sort honge!</p>
+    <h2>Bhai ka PDF SKU Sorter (All-Format Master Edition)</h2>
+    <p>Ab teenom types (Underscore, Pure Numbers 108... aur APCD07) ek sath mast sort honge!</p>
     
     <div class="upload-box" onclick="document.getElementById('pdfFile').click()">
         <p>Click here to upload your Shipping PDF</p>
@@ -158,40 +158,46 @@
             progressFill.innerText = value + '%';
         }
 
-        // ULTRA SPECIFIC TARGETING LOGIC FOR UNDERSCORE SKUs
+        // THREE-WAY TARGETED MATCHING
         function extractSkuFromText(text) {
             if (!text) return "UNKNOWN";
 
-            // Saare extra spacing aur lines ko saaf karke words nikalo
             const words = text.split(/[\s\n\t]+/).map(w => w.trim()).filter(w => w);
+            const ignoreList = ["SHADOWFAX", "XPRESS", "DELHIVERY", "EKART", "AMAZON", "BLUEDART", "GSTIN", "INVOICE", "AWB", "TRACKING", "ORDER"];
 
             // ---------------------------------------------------------
-            // PRIORITY 1: Long Underscore SKU Match (Jaise: 1501231043_37, 188042787_70)
+            // PRIORITY 1: Underscore SKU Match (Jaise: 1501231043_37, 188042787_70)
             // ---------------------------------------------------------
             for (let word of words) {
-                // Regex matches any long digits followed by underscore and short digits
                 let matchUnderscore = word.match(/\d+_\d+/);
-                
                 if (matchUnderscore) {
                     let fullMatch = matchUnderscore[0];
-                    
-                    // CRITICAL FILTER: Agar ye barcode ID ya order ID h jo _1 ya _2 pr khatam ho rhi h, to ise reject karo!
-                    if (fullMatch.endsWith('_1') || fullMatch.endsWith('_2')) {
-                        continue; 
+                    // _1 ya _2 waale order codes ko block rakho
+                    if (!fullMatch.endsWith('_1') && !fullMatch.endsWith('_2')) {
+                        return fullMatch;
                     }
-                    
-                    // Agar valid underscore SKU hai to direct return karo
-                    return fullMatch;
                 }
             }
 
             // ---------------------------------------------------------
-            // PRIORITY 2: Alphanumeric Sku Backup Hit (Jaise: APCD07)
+            // PRIORITY 2: Pure Numeric SKU Match (Jaise: 108123407, 108123439)
+            // ---------------------------------------------------------
+            for (let word of words) {
+                // Rule: Pure number hona chahiye, length 8 se 10 digit, aur 108 se shuru ho
+                if (/^\d{8,11}$/.test(word) && word.startsWith("108")) {
+                    return word;
+                }
+            }
+
+            // ---------------------------------------------------------
+            // PRIORITY 3: Alphanumeric Format Direct Hit (Jaise: APCD07)
             // ---------------------------------------------------------
             for (let word of words) {
                 let cleanWord = word.replace(/[:,-]/g, '');
-                
-                // Pure characters jo strictly letters+numbers hon aur fuung jaisa generic invoice na ho
+                let upperWord = cleanWord.toUpperCase();
+
+                if (ignoreList.some(keyword => upperWord.includes(keyword)) || upperWord.length > 15) continue;
+
                 if (/^[A-Z]{2,6}[0-9]{2,6}$/i.test(cleanWord)) {
                     if (!cleanWord.toUpperCase().startsWith("FUUNG")) {
                         return cleanWord;
