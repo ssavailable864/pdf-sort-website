@@ -158,52 +158,68 @@
             progressFill.innerText = value + '%';
         }
 
-        // UPDATED & POWERFUL LOGIC FOR APCD07 STYLE SKUs
+        // COURIER/NAME FILTERING LOGIC FOR APCD07 FORMAT
         function extractSkuFromText(text) {
             if (!text) return "UNKNOWN";
 
-            // Lines mein break karo aur extra spaces saaf karo
             const lines = text.split('\n').map(l => l.trim()).filter(l => l);
             
-            // 1. FIRST PRIORITY: "SKU" word ke exact niche ya aaju-baaju kya likha hai
+            // Known Courier and system keywords to absolutely ignore
+            const ignoreList = ["SHADOWFAX", "XPRESS BEES", "XPRESSBEES", "DELHIVERY", "EKART", "AMAZON", "BLUEDART", "COURIER", "AWB", "TRACKING", "ORDER", "SIZE", "QTY", "QUANTITY", "PRICE", "TOTAL", "SHIPMENT", "CUSTOMER"];
+
+            // 1. FIRST PRIORITY: Check for explicit SKU identifier lines
             for (let i = 0; i < lines.length; i++) {
                 let currentLine = lines[i].toUpperCase();
                 
-                // Agar poori line hi sirf "SKU" hai, toh uske niche wali line pakka SKU hai
                 if (currentLine === "SKU") {
                     if (i + 1 < lines.length) {
                         let potentialSku = lines[i + 1].trim();
-                        // Validation: Size, Qty jaisa fasaane wala shabd na ho
-                        if (potentialSku.length >= 3 && !["SIZE", "QTY", "QUANTITY", "PRICE"].includes(potentialSku.toUpperCase())) {
+                        let cleanPot = potentialSku.toUpperCase();
+                        
+                        // Validation check against ignore list
+                        if (potentialSku.length >= 3 && !ignoreList.some(keyword => cleanPot.includes(keyword))) {
                             return potentialSku;
                         }
                     }
                 }
                 
-                // Agar line mein "SKU:" ya "SKU -" likha ho (Jaise: SKU: APCD07)
                 if (currentLine.includes("SKU") && currentLine.length > 3) {
                     let match = lines[i].match(/SKU[\s:]*([\w\d_-]+)/i);
                     if (match && match[1].length >= 3) {
                         let extracted = match[1].trim();
-                        if (!["SIZE", "QTY"].includes(extracted.toUpperCase())) {
+                        if (!ignoreList.some(keyword => extracted.toUpperCase().includes(keyword))) {
                             return extracted;
                         }
                     }
                 }
             }
 
-            // 2. SECOND PRIORITY: Agar "SKU" word nahi mila, toh pure text mein APCD07 jaisa pattern dhoodho
-            // Yeh pattern dhoodhega: Alphabets ke baad direct numbers (Jaise: APCD07 ya APCD_07 या AP-07)
+            // 2. SECOND PRIORITY: Alphanumeric signature matching (e.g., APCD07)
+            // Dhoodho: Shuruat mein letters (2-6 chars) aur piche numbers (2-6 chars)
             for (let line of lines) {
-                let cleaned = line.replace(/[\s\t]/g, ''); // spaces mitao
-                
-                // Regex: Starts with alphabets, can have numbers/dash/underscore, length between 4 to 15
-                // Specially built for alphanumeric tags like APCD07
-                if (/^[A-Z]+[0-9_-]+/i.test(cleaned) || /^[A-Z0-9_-]{4,12}$/i.test(cleaned)) {
-                    // Safe checks: Reject pure numbers (Order IDs), GST numbers (15 chars), or common labels
-                    if (!/^\d+$/.test(cleaned) && cleaned.length !== 15 && !cleaned.toUpperCase().includes("GSTIN")) {
-                        return line.trim(); // Original line spaces ke sath return karo taaki clean dikhe
-                    }
+                let cleaned = line.replace(/[\s\t]/g, '');
+                let cleanUpper = cleaned.toUpperCase();
+
+                // Courier filter
+                if (ignoreList.some(keyword => cleanUpper.includes(keyword)) || cleanUpper.includes("GSTIN")) continue;
+
+                // Pattern: Letters followed by digits (e.g., APCD07 or AP-07)
+                let alphaNumMatch = cleaned.match(/^[A-Z]{2,6}[0-9]{2,6}$/i) || cleaned.match(/^[A-Z]{2,6}[_-][0-9]{2,6}$/i);
+                if (alphaNumMatch) {
+                    return line.trim();
+                }
+            }
+
+            // 3. THIRD PRIORITY: General mixed alphanumeric code fallback (Strict Length check)
+            for (let line of lines) {
+                let cleaned = line.replace(/[\s\t]/g, '');
+                let cleanUpper = cleaned.toUpperCase();
+
+                if (ignoreList.some(keyword => cleanUpper.includes(keyword)) || cleanUpper.includes("GSTIN") || cleaned.length === 15) continue;
+
+                // Must contain both letters and numbers, length 4 to 10
+                if (/[A-Z]/i.test(cleaned) && /[0-9]/.test(cleaned) && cleaned.length >= 4 && cleaned.length <= 10) {
+                    return line.trim();
                 }
             }
 
