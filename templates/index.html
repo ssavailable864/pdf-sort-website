@@ -2,110 +2,99 @@
 <html>
 
 <head>
+<title>PDF SKU SORTER PRO</title>
 
-    <title>PDF SKU SORTER</title>
+<style>
 
-    <style>
+body{
+    margin:0;
+    font-family:Arial;
+    background:linear-gradient(135deg,#1e3c72,#2a5298);
+    height:100vh;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+}
 
-        body{
-            margin:0;
-            padding:0;
-            font-family:Arial;
-            background:linear-gradient(
-                135deg,
-                #1e3c72,
-                #2a5298
-            );
-            height:100vh;
-            display:flex;
-            justify-content:center;
-            align-items:center;
-        }
+.box{
+    background:white;
+    width:460px;
+    padding:35px;
+    border-radius:20px;
+    text-align:center;
+    box-shadow:0 0 25px rgba(0,0,0,0.3);
+}
 
-        .box{
+h1{
+    color:#2a5298;
+    margin-bottom:20px;
+}
 
-            background:white;
-            width:450px;
-            padding:40px;
-            border-radius:20px;
-            text-align:center;
-            box-shadow:0px 0px 25px rgba(0,0,0,0.3);
-        }
+input{
+    width:100%;
+    padding:15px;
+    border:2px dashed #2a5298;
+    border-radius:10px;
+    margin-bottom:15px;
+}
 
-        h1{
+button{
+    width:100%;
+    padding:15px;
+    border:none;
+    border-radius:10px;
+    background:#2a5298;
+    color:white;
+    font-size:18px;
+    font-weight:bold;
+    cursor:pointer;
+}
 
-            color:#2a5298;
-            margin-bottom:30px;
-        }
+button:hover{
+    background:#1e3c72;
+}
 
-        input[type=file]{
+#loading{
+    display:none;
+    margin-top:20px;
+}
 
-            width:100%;
-            padding:15px;
-            border:2px dashed #2a5298;
-            border-radius:10px;
-            margin-bottom:20px;
-        }
+.step{
+    font-weight:bold;
+    color:#2a5298;
+    margin-bottom:10px;
+}
 
-        button{
+.bar{
+    width:100%;
+    height:25px;
+    background:#ddd;
+    border-radius:30px;
+    overflow:hidden;
+}
 
-            width:100%;
-            padding:15px;
-            border:none;
-            border-radius:10px;
-            background:#2a5298;
-            color:white;
-            font-size:18px;
-            font-weight:bold;
-            cursor:pointer;
-        }
+.progress{
+    height:100%;
+    width:0%;
+    background:linear-gradient(90deg,#00c853,#64dd17);
+    transition:0.4s;
+}
 
-        button:hover{
+#success{
+    display:none;
+    color:green;
+    font-size:18px;
+    font-weight:bold;
+    margin-top:15px;
+}
 
-            background:#1e3c72;
-        }
+#log{
+    margin-top:10px;
+    font-size:13px;
+    color:#555;
+}
 
-        #loading{
-
-            margin-top:20px;
-            display:none;
-        }
-
-        .bar{
-
-            width:100%;
-            height:25px;
-            background:#ddd;
-            border-radius:30px;
-            overflow:hidden;
-            margin-top:15px;
-        }
-
-        .progress{
-
-            width:100%;
-            height:100%;
-            background:linear-gradient(
-                90deg,
-                #00c853,
-                #64dd17
-            );
-
-            animation:loading 2s infinite;
-        }
-
-        @keyframes loading{
-
-            0%{
-                transform:translateX(-100%);
-            }
-
-            100%{
-                transform:translateX(100%);
-            }
-        }
-
-    </style>
+</style>
 
 </head>
 
@@ -113,55 +102,81 @@
 
 <div class="box">
 
-    <h1>PDF SKU SORTER</h1>
+<h1>PDF SKU SORTER PRO</h1>
 
-    <form
-        action="/upload"
-        method="POST"
-        enctype="multipart/form-data"
-        onsubmit="showLoading()"
-    >
+<form id="form">
 
-        <input
-            type="file"
-            name="pdf"
-            accept=".pdf"
-            required
-        >
+<input type="file" name="pdf" required>
 
-        <button type="submit">
-            UPLOAD & SORT
-        </button>
+<button type="submit">UPLOAD & PROCESS</button>
 
-    </form>
+</form>
 
-    <div id="loading">
+<div id="loading">
 
-        <h3>
-            PROCESSING PDF...
-        </h3>
+<div class="step" id="step">Waiting...</div>
 
-        <div class="bar">
+<div class="bar">
+    <div class="progress" id="bar"></div>
+</div>
 
-            <div class="progress"></div>
+<div id="log"></div>
 
-        </div>
+<div id="success">✔ PROCESS COMPLETED SUCCESSFULLY</div>
 
-    </div>
+</div>
 
 </div>
 
 <script>
 
-function showLoading(){
+const form = document.getElementById("form");
+const loading = document.getElementById("loading");
+const step = document.getElementById("step");
+const bar = document.getElementById("bar");
+const success = document.getElementById("success");
+const log = document.getElementById("log");
 
-    document.getElementById(
-        "loading"
-    ).style.display = "block";
+form.addEventListener("submit", async (e)=>{
+
+e.preventDefault();
+
+loading.style.display = "block";
+success.style.display = "none";
+log.innerHTML = "";
+
+let formData = new FormData(form);
+
+let res = await fetch("/upload", {
+    method: "POST",
+    body: formData
+});
+
+// STREAM RESPONSE
+const reader = res.body.getReader();
+const decoder = new TextDecoder();
+
+while(true){
+
+    const {value, done} = await reader.read();
+    if(done) break;
+
+    let text = decoder.decode(value);
+    let data = JSON.parse(text);
+
+    step.innerText = data.step;
+    bar.style.width = data.progress + "%";
+
+    log.innerHTML += "✔ " + data.step + "<br>";
+
+    if(data.step === "COMPLETED"){
+        success.style.display = "block";
+    }
 }
+
+});
 
 </script>
 
 </body>
-
 </html>

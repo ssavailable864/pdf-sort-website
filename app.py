@@ -1,4 +1,4 @@
-from flask import Flask, request, send_file, render_template
+from flask import Flask, request, send_file, render_template, Response
 import fitz
 import os
 import io
@@ -8,6 +8,8 @@ from pyzbar.pyzbar import decode
 from collections import defaultdict
 from reportlab.pdfgen import canvas
 from reportlab.lib.utils import ImageReader
+import json
+import time
 
 app = Flask(__name__)
 
@@ -19,7 +21,7 @@ os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
 
 # -----------------------------
-# BARCODE SKU DETECTOR (FASTEST)
+# BARCODE DETECTOR
 # -----------------------------
 def get_sku_from_barcode(image_bytes):
     nparr = np.frombuffer(image_bytes, np.uint8)
@@ -28,8 +30,10 @@ def get_sku_from_barcode(image_bytes):
     barcodes = decode(img)
 
     for barcode in barcodes:
-        sku = barcode.data.decode("utf-8")
-        return sku.strip()
+        try:
+            return barcode.data.decode("utf-8").strip()
+        except:
+            return "UNKNOWN"
 
     return None
 
@@ -43,10 +47,11 @@ def home():
 
 
 # -----------------------------
-# PROCESS PDF
+# STREAM PROCESSING UPLOAD
 # -----------------------------
 @app.route("/upload", methods=["POST"])
 def upload():
+
     file = request.files["pdf"]
 
     filepath = os.path.join(UPLOAD_FOLDER, file.filename)
@@ -56,50 +61,99 @@ def upload():
 
     grouped = defaultdict(list)
 
-    # -----------------------------
-    # FAST PROCESSING LOOP
-    # -----------------------------
-    for page_num in range(len(doc)):
-        page = doc.load_page(page_num)
+    total_pages = len(doc)
 
-        pix = page.get_pixmap(dpi=200)
-        img_bytes = pix.tobytes("png")
+    def stream():
 
-        sku = get_sku_from_barcode(img_bytes)
+        # STEP 1
+        yield json.dumps({"step": "Uploading PDF", "progress": 5}) + "\n"
+        time.sleep(0.3)
 
-        if not sku:
-            sku = "UNKNOWN"
+        # STEP 2
+        yield json.dumps({"step": "Reading PDF Pages", "progress": 10}) + "\n"
 
-        print("PAGE:", page_num, "SKU:", sku)
+        # -----------------------------
+        # PAGE PROCESSING
+        # -----------------------------
+        for i in range(total_pages):
 
-        grouped[sku].append(img_bytes)
+            page = doc.load_page(i)
 
-    # -----------------------------
-    # OUTPUT PDF
-    # -----------------------------
-    output_file = os.path.join(OUTPUT_FOLDER, "SORTED_" + file.filename)
-    c = canvas.Canvas(output_file)
+            pix = page.get_pixmap(dpi=200)
+            img_bytes = pix.tobytes("png")
 
-    for sku in sorted(grouped.keys(), key=lambda x: (x == "UNKNOWN", x)):
+            sku = get_sku_from_barcode(img_bytes)
 
-        items = grouped[sku]
+            if not sku:
+                sku = "UNKNOWN"
 
-        for img in items:
-            c.drawImage(ImageReader(io.BytesIO(img)), 0, 0, 595, 842)
+            grouped[sku].append(img_bytes)
+
+            progress = int(((i + 1) / total_pages) * 60)
+
+            yield json.dumps({
+                "step": f"Processing Page {i+1}/{total_pages} | SKU: {sku}",
+                "progress": progress
+            }) + "\n"
+
+            time.sleep(0.05)
+
+        # -----------------------------
+        # SORTING
+        # -----------------------------
+        yield json.dumps({"step": "Sorting SKU Data", "progress": 75}) + "\n"
+        time.sleep(0.5)
+
+        sorted_keys = sorted(grouped.keys(), key=lambda x: (x == "UNKNOWN", x))
+
+        # -----------------------------
+        # PDF GENERATION
+        # -----------------------------
+        yield json.dumps({"step": "Generating Output PDF", "progress": 85}) + "\n"
+
+        output_file = os.path.join(OUTPUT_FOLDER, "SORTED_" + file.filename)
+        c = canvas.Canvas(output_file)
+
+        for sku in sorted_keys:
+
+            items = grouped[sku]
+
+            # images
+            for img in items:
+                c.drawImage(ImageReader(io.BytesIO(img)), 0, 0, 595, 842)
+                c.showPage()
+
+            # SKU summary page
+            c.setFont("Helvetica-Bold", 26)
+            c.drawString(180, 550, f"SKU: {sku}")
+            c.drawString(180, 500, f"TOTAL: {len(items)}")
             c.showPage()
 
-        c.setFont("Helvetica-Bold", 26)
-        c.drawString(180, 550, f"SKU: {sku}")
-        c.drawString(150, 500, f"TOTAL: {len(items)}")
-        c.showPage()
+        c.save()
 
-    c.save()
+        # -----------------------------
+        # COMPLETED
+        # -----------------------------
+        yield json.dumps({
+            "step": "COMPLETED",
+            "progress": 100,
+            "file": "/download/" + os.path.basename(output_file)
+        }) + "\n"
 
-    return send_file(output_file, as_attachment=True)
+    return Response(stream(), mimetype="text/plain")
 
 
 # -----------------------------
-# RUN
+# DOWNLOAD FILE
+# -----------------------------
+@app.route("/download/<filename>")
+def download(filename):
+    path = os.path.join(OUTPUT_FOLDER, filename)
+    return send_file(path, as_attachment=True)
+
+
+# -----------------------------
+# RUN APP
 # -----------------------------
 if __name__ == "__main__":
     app.run(debug=False)
