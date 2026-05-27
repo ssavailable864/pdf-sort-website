@@ -276,7 +276,7 @@
                 const outPdfDoc = await PDFLib.PDFDocument.create();
 
                 // -----------------------------------------------------------------------
-                // FIXED & CLEAN MASTER SUMMARY PAGE (No Overlapping Bug)
+                // FIXED TWO-COLUMN COORD-BASED SUMMARY PAGE (NO INTERSECTION / BUG FREE)
                 // -----------------------------------------------------------------------
                 let masterSummaryPage = outPdfDoc.addPage([595, 842]); // A4 Size
                 
@@ -284,24 +284,30 @@
                 masterSummaryPage.drawText("ALL SKU TOTAL LABELS SUMMARY", { x: 50, y: 790, size: 20, color: PDFLib.rgb(0, 0.44, 1) });
                 masterSummaryPage.drawText("----------------------------------------------------------------------------------", { x: 50, y: 770, size: 12, color: PDFLib.rgb(0.7, 0.7, 0.7) });
 
-                let currentY = 730; // Clean starting point below headers
+                let currentY = 730; 
                 
                 for (let sku of sortedKeys) {
                     let totalLabels = grouped[sku].length;
                     
-                    // Single-line clean text construction to prevent text-stacking
-                    let lineCombinedText = `SKU: ${sku.padEnd(25, ' ')}  |  TOTAL LABELS: ${totalLabels}`;
-                    
-                    masterSummaryPage.drawText(lineCombinedText, { 
+                    // Column 1: SKU text printed at x=60
+                    masterSummaryPage.drawText(`SKU: ${sku}`, { 
                         x: 60, 
                         y: currentY, 
-                        size: 14, 
-                        color: PDFLib.rgb(0.15, 0.15, 0.15) 
+                        size: 13, 
+                        color: PDFLib.rgb(0.1, 0.1, 0.1) 
+                    });
+
+                    // Column 2: TOTAL LABELS strictly hardcoded at x=350 to ensure zero overlapping
+                    masterSummaryPage.drawText(`|   TOTAL LABELS: ${totalLabels}`, { 
+                        x: 350, 
+                        y: currentY, 
+                        size: 13, 
+                        color: PDFLib.rgb(0.3, 0.4, 0.6) 
                     });
                     
-                    currentY -= 35; // Move down cleanly for the next row
+                    currentY -= 28; // Clean vertical row spacing
 
-                    // If summary overflows the page, smoothly add a new index page
+                    // Page boundary guard
                     if (currentY < 50) {
                         masterSummaryPage = outPdfDoc.addPage([595, 842]);
                         masterSummaryPage.drawText("ALL SKU TOTAL LABELS SUMMARY (Contd.)", { x: 50, y: 790, size: 20, color: PDFLib.rgb(0, 0.44, 1) });
