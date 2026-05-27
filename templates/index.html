@@ -5,26 +5,27 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PDF SKU Sorter</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
     <style>
         body { font-family: Arial, sans-serif; max-width: 600px; margin: 50px auto; padding: 20px; line-height: 1.6; }
-        .upload-box { border: 2px dashed #ccc; padding: 30px; text-align: center; cursor: pointer; background: #fafafa; }
-        .btn { background: #28a745; color: white; padding: 10px 20px; border: none; cursor: pointer; width: 100%; margin-top: 15px; font-size: 16px; }
-        .btn:disabled { background: #ccc; }
+        .upload-box { border: 2px dashed #ccc; padding: 30px; text-align: center; cursor: pointer; background: #fafafa; border-radius: 8px; }
+        .btn { background: #28a745; color: white; padding: 12px 20px; border: none; cursor: pointer; width: 100%; margin-top: 15px; font-size: 16px; border-radius: 4px; font-weight: bold; }
+        .btn:disabled { background: #ccc; cursor: not-allowed; }
         #progress-box { margin-top: 20px; display: none; }
-        .progress-bar { width: 100%; background-color: #f3f3f3; border-radius: 4px; }
-        .progress-bar-fill { height: 20px; width: 0%; background-color: #28a745; text-align: center; line-height: 20px; color: white; border-radius: 4px; transition: width 0.2s; }
+        .progress-bar { width: 100%; background-color: #f3f3f3; border-radius: 4px; margin-top: 10px; }
+        .progress-bar-fill { height: 20px; width: 0%; background-color: #28a745; text-align: center; line-height: 20px; color: white; border-radius: 4px; transition: width 0.2s; font-size: 12px; }
         #status { font-weight: bold; margin-bottom: 5px; color: #333; }
     </style>
 </head>
 <body>
 
-    <h2>Bhai ka PDF SKU Sorter (High-Speed)</h2>
-    <p>78+ pages bhi ab aaram se bina crash hue process honge!</p>
+    <h2>Bhai ka PDF SKU Sorter (Super-Fast Browser Edition)</h2>
+    <p>Ab 100-200 pages bhi bina kisi server error ke direct computer par sort honge!</p>
     
     <div class="upload-box" onclick="document.getElementById('pdfFile').click()">
         <p>Click here to upload your Shipping PDF</p>
         <input type="file" id="pdfFile" accept="application/pdf" style="display:none">
-        <span id="fileName"></span>
+        <span id="fileName" style="color: #007bff; font-weight: bold;"></span>
     </div>
 
     <button id="processBtn" class="btn" disabled>Start Sorting Process</button>
@@ -62,55 +63,93 @@
             processBtn.disabled = true;
             progressBox.style.display = 'block';
             
-            statusDiv.innerText = "Reading PDF in Browser...";
-            updateProgress(10);
+            statusDiv.innerText = "Reading PDF File...";
+            updateProgress(5);
 
             try {
-                // Read PDF file as ArrayBuffer
                 const arrayBuffer = await selectedFile.arrayBuffer();
-                const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-                const totalPages = pdf.numPages;
+                
+                // Load for reading text
+                const pdfDocForRead = await pdfjsLib.getDocument({ data: arrayBuffer.slice(0) }).promise;
+                const totalPages = pdfDocForRead.numPages;
 
-                let pageMapping = []; // Format: [{pageIndex: 0, sku: '123'}, ...]
+                // Group dictionary: { 'SKU_123': [0, 1, 4], 'UNKNOWN': [2, 3] }
+                let grouped = {};
 
-                // Browser ke andar fast loop chalao text nikalne ke liye
+                // 1. SCAN PAGES FOR SKU
                 for (let i = 1; i <= totalPages; i++) {
-                    statusDiv.innerText = `Scanning Page ${i}/${totalPages} for SKU...`;
+                    statusDiv.innerText = `Scanning Label ${i}/${totalPages} for SKU...`;
                     
-                    const page = await pdf.getPage(i);
+                    const page = await pdfDocForRead.getPage(i);
                     const textContent = await page.getTextContent();
                     const pageText = textContent.items.map(item => item.str).join('\n');
                     
-                    // Frontend SKU Regex Logic (Same as Python)
                     let sku = extractSkuFromText(pageText);
-                    pageMapping.push({ pageIndex: i - 1, sku: sku });
+                    
+                    if (!grouped[sku]) grouped[sku] = [];
+                    grouped[sku].push(i - 1); // Store page index (0-based)
 
-                    let percent = Math.floor((i / totalPages) * 50) + 10;
+                    let percent = Math.floor((i / totalPages) * 45) + 5;
                     updateProgress(percent);
                 }
 
-                statusDiv.innerText = "Sending Data to Server for Sorting...";
-                updateProgress(70);
+                statusDiv.innerText = "Grouping & Sorting SKUs...";
+                updateProgress(55);
 
-                // Ab saara processed data backend ko bhejdo final PDF banane ke liye
-                const formData = new FormData();
-                formData.append('pdf', selectedFile);
-                formData.append('mapping', JSON.stringify(pageMapping));
-
-                const response = await fetch('/upload', {
-                    method: 'POST',
-                    body: formData
+                // Sort keys: Unknown stays at last
+                let sortedKeys = Object.keys(grouped).sort((a, b) => {
+                    if (a === "UNKNOWN") return 1;
+                    if (b === "UNKNOWN") return -1;
+                    return a.localeCompare(b);
                 });
 
-                if (!response.ok) throw new Error("Server error, please try again.");
+                statusDiv.innerText = "Generating Sorted PDF in Browser (Hold on)...";
+                
+                // Load for writing/copying pages
+                const srcPdfDoc = await PDFLib.PDFDocument.load(arrayBuffer);
+                const outPdfDoc = await PDFLib.PDFDocument.create();
 
-                const result = await response.json();
+                // 2. BUILD NEW PDF
+                for (let k = 0; k < sortedKeys.length; k++) {
+                    let sku = sortedKeys[k];
+                    let pageIndices = grouped[sku];
+
+                    statusDiv.innerText = `Stitching SKU: ${sku} (${pageIndices.length} Labels)...`;
+
+                    // Copy original label pages
+                    const copiedPages = await outPdfDoc.copyPages(srcPdfDoc, pageIndices);
+                    copiedPages.forEach(page => outPdfDoc.addPage(page));
+
+                    // Add Summary Separator Page
+                    const summaryPage = outPdfDoc.addPage([595, 842]); // A4 Size
+                    
+                    summaryPage.drawText(`SKU: ${sku}`, { x: 100, y: 500, size: 26 });
+                    summaryPage.drawText(`TOTAL LABELS: ${pageIndices.length}`, { x: 100, y: 450, size: 22 });
+
+                    let percent = Math.floor((k / sortedKeys.length) * 40) + 55;
+                    updateProgress(percent);
+                }
+
+                statusDiv.innerText = "Finalizing PDF Download...";
+                updateProgress(98);
+
+                // Save and triggers download directly from browser
+                const pdfBytes = await outPdfDoc.save();
+                const blob = new Blob([pdfBytes], { type: "application/pdf" });
+                const link = document.createElement('a');
+                link.href = URL.createObjectURL(blob);
+                link.download = "SORTED_" + selectedFile.name;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+
                 updateProgress(100);
-                statusDiv.innerHTML = `COMPLETED! <a href="${result.file}" target="_blank" style="color:#28a745; font-weight:bold;">Click here to Download Sorted PDF</a>`;
+                statusDiv.innerHTML = `<span style="color:#28a745;">✓ Process Completed Successfully!</span> Your sorted file has been downloaded.`;
+                processBtn.disabled = false;
 
             } catch (error) {
                 console.error(error);
-                statusDiv.innerText = "Error: " + error.message;
+                statusDiv.innerText = "Error during processing: " + error.message;
                 processBtn.disabled = false;
             }
         });
@@ -120,21 +159,21 @@
             progressFill.innerText = value + '%';
         }
 
-        // JavaScript helper to find SKU from lines
         function extractSkuFromText(text) {
             if (!text) return "UNKNOWN";
+            // Cleaning up text layout
             const lines = text.split('\n').map(l => l.trim()).filter(l => l);
             
             for (let i = 0; i < lines.length; i++) {
+                // Perfect hit for your design format
                 if (lines[i].toUpperCase() === "SKU") {
                     if (i + 1 < lines.length) {
                         let potentialSku = lines[i + 1];
-                        if (potentialSku.length > 3 && potentialSku.toUpperCase() !== "SIZE") {
+                        if (potentialSku.length > 3 && potentialSku.toUpperCase() !== "SIZE" && potentialSku.toUpperCase() !== "QTY") {
                             return potentialSku;
                         }
                     }
                 }
-                // Backup Regex
                 if (lines[i].toUpperCase().includes("SKU")) {
                     let match = lines[i].match(/SKU[\s:]*([\w\d_-]+)/i);
                     if (match && match[1].length > 2) return match[1];
