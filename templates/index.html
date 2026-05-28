@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Meesho PDF SKU Sorter & Inventory</title>
+    <title>Meesho PDF SKU Sorter & Inventory Control</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -194,14 +194,7 @@
             text-align: center;
             margin-bottom: 15px;
             font-size: 15px;
-            animation: pulse 2s infinite;
             display: none;
-        }
-
-        @keyframes pulse {
-            0% { opacity: 1; transform: scale(1); }
-            50% { opacity: 0.85; transform: scale(0.99); }
-            100% { opacity: 1; transform: scale(1); }
         }
 
         .item-row {
@@ -254,7 +247,7 @@
         .qty-btn:hover { background: #64ffda; color: #0a192f; }
 
         .direct-qty-input {
-            width: 55px;
+            width: 65px;
             height: 28px;
             background: #0a192f;
             border: 1px dashed #64ffda;
@@ -263,11 +256,6 @@
             text-align: center;
             font-weight: bold;
             font-size: 14px;
-        }
-        .direct-qty-input:focus {
-            outline: none;
-            border-style: solid;
-            background: #112240;
         }
 
         .save-btn {
@@ -300,7 +288,7 @@
             <div id="low-stock-container" style="max-height: 220px; overflow-y: auto; margin-bottom: 15px;">
                 <p style="color: #8892b0; text-align: center; font-size: 14px;">Loading sheet inventory status...</p>
             </div>
-            <button class="btn" style="background: linear-gradient(135deg, #64ffda 0%, #48cbb0 100%); color: #0a192f; margin-top: 10px; box-shadow: 0 4px 15px rgba(100, 255, 218, 0.2);" onclick="switchView('adjustment')">
+            <button class="btn" style="background: linear-gradient(135deg, #64ffda 0%, #48cbb0 100%); color: #0a192f; margin-top: 10px;" onclick="switchView('adjustment')">
                 Open Stock Adjustment Panel
             </button>
         </div>
@@ -325,20 +313,6 @@
                 </div>
             </div>
         </div>
-
-        <div class="main-card" style="background: #112240; border: 1px solid #233554; box-shadow: 0 10px 30px rgba(0,0,0,0.3);">
-            <div class="header-container" style="margin-bottom: 25px; padding-bottom: 15px; border-bottom: 1px solid #233554;">
-                <h2 style="background: linear-gradient(135deg, #ff9900 0%, #ffcc00 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-size: 28px; font-weight: 800; letter-spacing: -0.5px;">
-                    Amazon Live Orders
-                </h2>
-            </div>
-            <div style="text-align: center; padding: 10px 0;">
-                <div style="background: #0a192f; padding: 30px 25px; border-radius: 16px; border: 2px dashed #ff9900; display: inline-block; min-width: 240px;">
-                    <p style="margin: 0 0 10px 0; font-size: 13px; color: #8892b0; font-weight: 700; text-transform: uppercase;">Today's Total Orders</p>
-                    <h1 id="amazon-count" style="margin: 0; color: #ff9900; font-size: 48px;">Loading...</h1>
-                </div>
-            </div>
-        </div>
     </div>
 
     <div id="adjustment-view" style="width: 100%; max-width: 650px; display: none;">
@@ -353,7 +327,7 @@
             </button>
             <input type="text" id="inventorySearch" class="search-input" placeholder="Search SKU (Busybee Code) or Book Name..." oninput="filterInventoryList()">
             <div id="full-inventory-list" style="max-height: 450px; overflow-y: auto;">
-                <p style="color: #8892b0; text-align: center;">Loading full catalog from Google Sheet...</p>
+                <p style="color: #8892b0; text-align: center;">Loading catalog from Google Sheet...</p>
             </div>
         </div>
     </div>
@@ -361,7 +335,8 @@
     <script>
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
 
-        const GOOGLE_SHEET_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzPfwBtuBXjKkN2J7NGAo3PLAtaxeRpmL-TnCPJBSdp29PKRvKZ_7u6Sn6sR7XbV1D9/exec";
+        // ⚠️ APNA NEW DEPLOYED WEB APP URL YAHAN PASTE KAREIN
+        const GOOGLE_SHEET_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxnzyI1uYy6ZJyw6xiMO0wYKFwMQx0cZ9ImxsvPGIOkaQP-NuQS_zuhB6jbyJ1TGjw/exec";
         let fullInventoryData = [];
 
         function switchView(viewName) {
@@ -381,12 +356,12 @@
                 const response = await fetch(GOOGLE_SHEET_SCRIPT_URL, { redirect: "follow" });
                 const data = await response.json();
                 
-                // 🌟 Mapped perfectly to handle: Busybee Code -> sku, Book Name -> name, Closing Stock -> qty
+                // Mapped to Row 2 Headers safely
                 fullInventoryData = data.map(item => ({
-                    sku: item['Busybee Code'] || item.sku || 'UNKNOWN',
-                    name: item['Book Name'] || item['books name'] || item.name || 'Unnamed Book',
-                    qty: Number(item['Closing Stock'] || item.qty || 0)
-                }));
+                    sku: item['Busybee Code'] ? item['Busybee Code'].toString().trim() : 'UNKNOWN',
+                    name: item['Book Name'] ? item['Book Name'].toString().trim() : 'Unnamed Book',
+                    qty: item['Closing Stock'] !== undefined ? Number(item['Closing Stock']) : 0
+                })).filter(item => item.sku !== 'UNKNOWN' && item.sku !== "");
 
                 const lowStockItems = fullInventoryData.filter(item => item.qty <= 200);
                 const lowStockContainer = document.getElementById('low-stock-container');
@@ -495,7 +470,7 @@
             }
         }
 
-        // ================= QUANTITY & SUMMARY GENERATOR ENGINE =================
+        // ================= MEESHO PDF LABELS ENGINE =================
         const fileInput = document.getElementById('pdfFile');
         const fileNameSpan = document.getElementById('fileName');
         const processBtn = document.getElementById('processBtn');
@@ -769,24 +744,9 @@
             return "UNKNOWN_ORDER_ID";
         }
 
-        async function fetchAmazonOrders() {
-            const countElement = document.getElementById('amazon-count');
-            try {
-                const response = await fetch("https://aghmare-amazon-backend.onrender.com/api/amazon-orders");
-                const data = await response.json();
-                if(data.status === "success") countElement.innerText = data.total_today;
-            } catch (error) {
-                countElement.innerText = "Setup Pending";
-                countElement.style.fontSize = "24px";
-                countElement.style.color = "#ffdd67";
-            }
-        }
-
         window.addEventListener('DOMContentLoaded', () => {
-            fetchAmazonOrders();
             fetchSheetInventory(); 
-            setInterval(fetchAmazonOrders, 600000); 
-            setInterval(fetchSheetInventory, 300000); 
+            setInterval(fetchSheetInventory, 300000); // 5 mins auto refresh
         });
     </script>
 </body>
