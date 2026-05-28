@@ -488,7 +488,7 @@
             }
         }
 
-        // ================= QUANTITY BREAKDOWN ENGINE (WITH ORDER ID LISTING) =================
+        // ================= QUANTITY & SUMMARY REPORT GENERATOR ENGINE =================
         const fileInput = document.getElementById('pdfFile');
         const fileNameSpan = document.getElementById('fileName');
         const processBtn = document.getElementById('processBtn');
@@ -534,7 +534,6 @@
                     if (!groupedData[sku]) groupedData[sku] = {};
                     if (!groupedData[sku][qty]) groupedData[sku][qty] = [];
                     
-                    // Saving page index along with its extracted orderId
                     groupedData[sku][qty].push({ index: i - 1, orderId: orderId });
                     updateProgress(Math.floor((i / totalPages) * 45) + 5);
                 }
@@ -545,12 +544,12 @@
                 const srcPdfDoc = await PDFLib.PDFDocument.load(arrayBuffer);
                 const outPdfDoc = await PDFLib.PDFDocument.create();
 
-                // Master Summary Index Top Page Setup
+                // 🌟 FIRST PAGE SETUP: MASTER SUMMARY REPORT WITH ORDER IDs 🌟
                 let masterSummaryPage = outPdfDoc.addPage([595, 842]); 
                 masterSummaryPage.drawText("ALL SKU TOTAL LABELS SUMMARY", { x: 50, y: 790, size: 18, color: PDFLib.rgb(0, 0.44, 1) });
                 masterSummaryPage.drawText("----------------------------------------------------------------------------------", { x: 50, y: 770, size: 12, color: PDFLib.rgb(0.7, 0.7, 0.7) });
 
-                let currentY = 730;
+                let currentY = 740;
                 let sortedSkus = Object.keys(groupedData).sort((a, b) => {
                     if (a === "UNKNOWN") return 1;
                     if (b === "UNKNOWN") return -1;
@@ -566,13 +565,15 @@
                     let skuTotalLabels = 0;
                     let skuTotalPieces = 0;
 
-                    masterSummaryPage.drawText(`SKU: ${sku}`, { x: 55, y: currentY, size: 12, color: PDFLib.rgb(0.1, 0.1, 0.1) });
+                    // Write Heading for SKU Block
+                    masterSummaryPage.drawText(`SKU: ${sku}`, { x: 55, y: currentY, size: 13, color: PDFLib.rgb(0, 0, 0) });
                     currentY -= 18;
 
                     skuTotalsMap[sku] = {};
 
                     for (let qty of sortedQtys) {
-                        let labelCount = qtyBreakdown[qty].length;
+                        let records = qtyBreakdown[qty];
+                        let labelCount = records.length;
                         let pieceTotal = labelCount * Number(qty);
                         
                         skuTotalLabels += labelCount;
@@ -583,19 +584,31 @@
                             pieceTotal: pieceTotal
                         };
 
-                        masterSummaryPage.drawText(`   Labels with Qty ${qty}`, { x: 70, y: currentY, size: 11, color: PDFLib.rgb(0.3, 0.3, 0.3) });
-                        masterSummaryPage.drawText(`: ${labelCount} Labels`, { x: 210, y: currentY, size: 11, color: PDFLib.rgb(0.2, 0.5, 0.2) });
-                        masterSummaryPage.drawText(`(= ${pieceTotal} Pcs Order)`, { x: 310, y: currentY, size: 11, color: PDFLib.rgb(0.5, 0.4, 0.1) });
+                        // Print Metrics Line
+                        masterSummaryPage.drawText(`   Labels with Qty ${qty}`, { x: 70, y: currentY, size: 11, color: PDFLib.rgb(0.2, 0.2, 0.2) });
+                        masterSummaryPage.drawText(`: ${labelCount} Labels`, { x: 210, y: currentY, size: 11, color: PDFLib.rgb(0.1, 0.5, 0.1) });
+                        masterSummaryPage.drawText(`(= ${pieceTotal} Pcs Orders)`, { x: 310, y: currentY, size: 11, color: PDFLib.rgb(0.5, 0.4, 0.1) });
                         currentY -= 16;
 
-                        if (currentY < 50) {
-                            masterSummaryPage = outPdfDoc.addPage([595, 842]);
-                            masterSummaryPage.drawText("ALL SKU TOTAL LABELS SUMMARY (Contd.)", { x: 50, y: 790, size: 16, color: PDFLib.rgb(0, 0.44, 1) });
-                            currentY = 730;
+                        // 🌟 PRINTING ALL TRACKED ORDER IDs UNDER THIS SKU BATCH 🌟
+                        masterSummaryPage.drawText(`   Order IDs for this batch:`, { x: 80, y: currentY, size: 9, color: PDFLib.rgb(0.5, 0.5, 0.5) });
+                        currentY -= 12;
+
+                        for(let r=0; r < records.length; r++) {
+                            masterSummaryPage.drawText(`     - ${records[r].orderId}`, { x: 90, y: currentY, size: 9, color: PDFLib.rgb(0.3, 0.3, 0.3) });
+                            currentY -= 12;
+
+                            // Summary Page Auto Overflow handler
+                            if (currentY < 50) {
+                                masterSummaryPage = outPdfDoc.addPage([595, 842]);
+                                masterSummaryPage.drawText("ALL SKU TOTAL LABELS SUMMARY (Contd.)", { x: 50, y: 790, size: 16, color: PDFLib.rgb(0, 0.44, 1) });
+                                currentY = 740;
+                            }
                         }
+                        currentY -= 6; 
                     }
 
-                    masterSummaryPage.drawText(`   TOTAL: ${skuTotalLabels} Labels | Total Pieces: ${skuTotalPieces} Pcs`, { x: 70, y: currentY, size: 11, color: PDFLib.rgb(0, 0.3, 0.8) });
+                    masterSummaryPage.drawText(`   TOTAL COMBINED: ${skuTotalLabels} Labels | Total Pieces: ${skuTotalPieces} Pcs`, { x: 70, y: currentY, size: 11, color: PDFLib.rgb(0, 0.3, 0.8) });
                     currentY -= 14;
                     masterSummaryPage.drawText("   ------------------------------------------------------------------------------", { x: 70, y: currentY, size: 10, color: PDFLib.rgb(0.8, 0.8, 0.8) });
                     currentY -= 20;
@@ -603,11 +616,11 @@
                     if (currentY < 70) {
                         masterSummaryPage = outPdfDoc.addPage([595, 842]);
                         masterSummaryPage.drawText("ALL SKU TOTAL LABELS SUMMARY (Contd.)", { x: 50, y: 790, size: 16, color: PDFLib.rgb(0, 0.44, 1) });
-                        currentY = 730;
+                        currentY = 740;
                     }
                 }
 
-                // Step 2: Add Separator Pages WITH Order ID Lists + Labels
+                // Step 2: Add Clean Separator Blank Pages (BINA ORDER ID KE) + Original Labels
                 let totalBlocksProcessed = 0;
                 for (let sku of sortedSkus) {
                     let qtyBreakdown = groupedData[sku];
@@ -617,35 +630,20 @@
                         let records = qtyBreakdown[qty];
                         let stats = skuTotalsMap[sku][qty];
                         
-                        statusDiv.innerText = `Generating Batch & Orders List Card for SKU: ${sku} [Qty: ${qty}]...`;
+                        statusDiv.innerText = `Generating Batch Card & Stitching SKU: ${sku} [Qty: ${qty}]...`;
 
-                        // 🌟 DYNAMIC SEPARATOR CARD PAGE WITH ORDER LISTS 🌟
-                        let separatorPage = outPdfDoc.addPage([595, 842]); 
+                        // 🌟 CLEAN SEPARATOR BLANK BATCH CARD PAGE (Bina Order ID ke, jaisa pehle tha!) 🌟
+                        const separatorPage = outPdfDoc.addPage([595, 842]); 
                         
-                        separatorPage.drawText(`SKU: ${sku}`, { x: 60, y: 780, size: 22, color: PDFLib.rgb(0, 0, 0) });
-                        separatorPage.drawText(`LABEL INDIVIDUAL QTY: ${qty}`, { x: 60, y: 745, size: 18, color: PDFLib.rgb(0.85, 0, 0) });
-                        separatorPage.drawText(`TOTAL LABELS IN THIS BATCH: ${stats.labelCount}`, { x: 60, y: 715, size: 14, color: PDFLib.rgb(0.2, 0.2, 0.2) });
-                        separatorPage.drawText(`TOTAL THIS BATCH QTY: ${stats.pieceTotal}`, { x: 60, y: 690, size: 14, color: PDFLib.rgb(0, 0.4, 0.8) });
+                        separatorPage.drawText(`SKU: ${sku}`, { x: 80, y: 550, size: 24, color: PDFLib.rgb(0, 0, 0) });
+                        separatorPage.drawText(`LABEL INDIVIDUAL QTY: ${qty}`, { x: 80, y: 490, size: 20, color: PDFLib.rgb(0.85, 0, 0) });
+                        separatorPage.drawText(`TOTAL LABELS IN THIS BATCH: ${stats.labelCount}`, { x: 80, y: 430, size: 16, color: PDFLib.rgb(0.2, 0.2, 0.2) });
+                        separatorPage.drawText(`TOTAL THIS BATCH QTY: ${stats.pieceTotal}`, { x: 80, y: 380, size: 16, color: PDFLib.rgb(0, 0.4, 0.8) });
                         
-                        separatorPage.drawText("--------------------------------------------------------------------------------", { x: 60, y: 665, size: 12, color: PDFLib.rgb(0.7, 0.7, 0.7) });
-                        separatorPage.drawText("ORDER ID LIST IN THIS BATCH BUNDLE:", { x: 60, y: 645, size: 11, color: PDFLib.rgb(0.3, 0.3, 0.3) });
+                        // Separator line design
+                        separatorPage.drawText("--------------------------------------------------------------------------------", { x: 80, y: 340, size: 12, color: PDFLib.rgb(0.7, 0.7, 0.7) });
 
-                        let orderY = 620;
-                        
-                        // Loop to write out each unique tracked order id line-by-line
-                        for (let r = 0; r < records.length; r++) {
-                            separatorPage.drawText(`${r + 1}.   ${records[r].orderId}`, { x: 75, y: orderY, size: 11, color: PDFLib.rgb(0.1, 0.1, 0.1) });
-                            orderY -= 20;
-
-                            // Handle extra overflow pages if there are a massive amount of orders in a single batch
-                            if (orderY < 60 && r < records.length - 1) {
-                                separatorPage = outPdfDoc.addPage([595, 842]);
-                                separatorPage.drawText(`SKU: ${sku} (Qty: ${qty}) - ORDER ID LIST CONTINUED:`, { x: 60, y: 790, size: 12, color: PDFLib.rgb(0.5, 0.5, 0.5) });
-                                orderY = 750;
-                            }
-                        }
-
-                        // Copying original shipping label page references
+                        // Append original shipping labels
                         let pageIndicesOnly = records.map(r => r.index);
                         const copiedPages = await outPdfDoc.copyPages(srcPdfDoc, pageIndicesOnly);
                         copiedPages.forEach(page => outPdfDoc.addPage(page));
@@ -661,7 +659,7 @@
                 const blob = new Blob([pdfBytes], { type: "application/pdf" });
                 const link = document.createElement('a');
                 link.href = URL.createObjectURL(blob);
-                link.download = "FINAL_TRACKED_SORTED_" + selectedFile.name;
+                link.download = "SUMMARY_TRACKED_SORTED_" + selectedFile.name;
                 document.body.appendChild(link);
                 link.click();
                 document.body.removeChild(link);
@@ -759,16 +757,13 @@
             return "UNKNOWN";
         }
 
-        // 🌟 NEW FUNCTION: EXTRACTS DYNAMIC ORDER ID SAFELY FROM LABEL 🌟
         function extractOrderIdFromText(text) {
             if (!text) return "UNKNOWN_ORDER_ID";
             
-            // Regex to find typical 18-digit order numbers ending with _1, _2 etc.
             let orderPattern = /\b\d{15,20}_\d\b/;
             let match = text.match(orderPattern);
             if(match) return match[0];
 
-            // Backup scanner via line breaks
             const lines = text.split('\n').map(l => l.trim()).filter(l => l);
             for(let i = 0; i < lines.length; i++) {
                 if(lines[i].toUpperCase().includes("ORDER NO.") || lines[i].toUpperCase().includes("ORDER NO")) {
