@@ -171,7 +171,7 @@
             font-size: 14px;
         }
 
-        /* --- NEW STYLES FOR LOW STOCK & ADJUSTMENT PANEL --- */
+        /* --- STYLES FOR INVENTORY PANELS --- */
         .low-stock-card {
             background: #112240;
             border: 1px solid #ff4a4a;
@@ -246,6 +246,9 @@
             cursor: pointer;
             font-weight: bold;
             font-size: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
         .qty-btn:hover { background: #64ffda; color: #0a192f; }
 
@@ -267,7 +270,7 @@
     <div id="dashboard-view" style="width: 100%; display: flex; flex-direction: column; align-items: center;">
         
         <div class="marquee-container">
-            <div class="marquee-text">Developed by Waghmare Small Service &nbsp;&bull;&nbsp;  PDF Automation Tool &nbsp;&bull;&nbsp; Inventory Managed System</div>
+            <div class="marquee-text">Developed by Waghmare Small Service &nbsp;&bull;&nbsp;  PDF Automation Tool &nbsp;&bull;&nbsp; Inventory Management System</div>
         </div>
 
         <div class="low-stock-card">
@@ -277,7 +280,7 @@
                     🔴 Low Stock Alerts (&lt; 200)
                 </h2>
             </div>
-            <div id="low-stock-container" style="max-h: 220px; overflow-y: auto; margin-bottom: 15px;">
+            <div id="low-stock-container" style="max-height: 220px; overflow-y: auto; margin-bottom: 15px;">
                 <p style="color: #8892b0; text-align: center; font-size: 14px;">Loading sheet inventory status...</p>
             </div>
             <button class="btn" style="background: linear-gradient(135deg, #64ffda 0%, #48cbb0 100%); color: #0a192f; margin-top: 10px; box-shadow: 0 4px 15px rgba(100, 255, 218, 0.2);" onclick="switchView('adjustment')">
@@ -336,7 +339,7 @@
                 ← Back to Dashboard
             </button>
 
-            <input type="text" id="inventorySearch" class="search-input" placeholder="🔍 Search SKU or Item Name..." oninput="filterInventoryList()">
+            <input type="text" id="inventorySearch" class="search-input" placeholder="🔍 Search SKU or Book Name..." oninput="filterInventoryList()">
 
             <div id="full-inventory-list" style="max-height: 450px; overflow-y: auto; padding-right: 5px;">
                 <p style="color: #8892b0; text-align: center;">Loading full catalog from Google Sheet...</p>
@@ -347,12 +350,11 @@
     <script>
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
 
-        // PASTE YOUR GOOGLE APPS SCRIPT WEB APP URL HERE
-        const GOOGLE_SHEET_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwxUmBciRKGFV49da-AaJ69Rs-JVa6kEu9rpPLYHHljbTazx0r3RTfAztxARCXNgPFvkg/exec";
+        // 🌟 APNI NEW GOOGLE WEB APP URL YAHAN PASTE KARO 🌟
+        const GOOGLE_SHEET_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyJtb1egjYXs-FSKKi_uMahvbObLiUUPGhCgdSpdsgDiu4FgQPL15h_JwmqBCLTA_2jDQ/exec";
 
         let fullInventoryData = [];
 
-        // View Router Switching Logic
         function switchView(viewName) {
             if(viewName === 'adjustment') {
                 document.getElementById('dashboard-view').style.display = 'none';
@@ -365,34 +367,34 @@
             }
         }
 
-        // Fetch Data from Google Sheet
+        // Fetch Data from Sheet (Handling redirects flawlessly)
         async function fetchSheetInventory() {
             try {
-                const response = await fetch(GOOGLE_SHEET_SCRIPT_URL);
+                const response = await fetch(GOOGLE_SHEET_SCRIPT_URL, { redirect: "follow" });
                 const data = await response.json();
                 fullInventoryData = data;
                 
-                // Filter Low Stock (< 200)
-                const lowStockItems = data.filter(item => Number(item.stock || item.qty) < 200);
+                // Read from sheet column "qty"
+                const lowStockItems = data.filter(item => Number(item.qty || 0) < 200);
                 const lowStockContainer = document.getElementById('low-stock-container');
                 const alertBanner = document.getElementById('global-alert-banner');
 
                 if(lowStockItems.length > 0) {
                     alertBanner.style.display = 'block';
-                    alertBanner.innerText = `⚠️ ALERT: ${lowStockItems.length} ITEMS ARE RUNNING LOW IN STOCK!`;
+                    alertBanner.innerText = `⚠️ ALERT: ${lowStockItems.length} BOOKS ARE RUNNING LOW IN STOCK!`;
                     
                     lowStockContainer.innerHTML = lowStockItems.map(item => `
                         <div class="item-row">
                             <div class="item-info">
-                                <h4>${item.name || 'Unnamed Item'}</h4>
+                                <h4>${item['books name'] || item.name || 'Unnamed Item'}</h4>
                                 <p>SKU: ${item.sku}</p>
                             </div>
-                            <div class="stock-badge">${item.stock || item.qty} Left</div>
+                            <div class="stock-badge">${item.qty} Left</div>
                         </div>
                     `).join('');
                 } else {
                     alertBanner.style.display = 'none';
-                    lowStockContainer.innerHTML = `<p style="color: #64ffda; text-align: center; font-size: 14px;">🟢 All products stock are well maintained!</p>`;
+                    lowStockContainer.innerHTML = `<p style="color: #64ffda; text-align: center; font-size: 14px;">🟢 All books stock are well maintained!</p>`;
                 }
             } catch (error) {
                 console.error("Error loading sheet data:", error);
@@ -400,45 +402,45 @@
             }
         }
 
-        // Render Full List on Adjustment Page
+        // Render full table inside Adjustment screen
         function renderFullInventory(itemsToRender = fullInventoryData) {
             const listContainer = document.getElementById('full-inventory-list');
             if(itemsToRender.length === 0) {
-                listContainer.innerHTML = `<p style="color: #8892b0; text-align: center;">No item matches search query.</p>`;
+                listContainer.innerHTML = `<p style="color: #8892b0; text-align: center;">No items match your search query.</p>`;
                 return;
             }
 
-            listContainer.innerHTML = itemsToRender.map((item, index) => {
-                const currentStock = Number(item.stock || item.qty);
-                const isLow = currentStock < 200;
+            listContainer.innerHTML = itemsToRender.map((item) => {
+                const currentQty = Number(item.qty || 0);
+                const isLow = currentQty < 200;
+                // Escaping single quotes in titles safely
+                const safeSku = item.sku.replace(/'/g, "\\'");
                 return `
                     <div class="item-row" style="background: #112240; border-bottom: 1px solid #233554;">
-                        <div class="item-info">
-                            <h4 style="color: #ffffff;">${item.name || 'Item'}</h4>
+                        <div class="item-info" style="max-width: 60%;">
+                            <h4 style="color: #ffffff;">${item['books name'] || 'Book Item'}</h4>
                             <p style="color: #8892b0;">SKU: ${item.sku}</p>
                         </div>
                         <div class="adjust-btn-container">
-                            <button class="qty-btn" onclick="adjustLocalStock('${item.sku}', -1)">-</button>
-                            <span id="stock-val-${item.sku}" style="color: ${isLow ? '#ff4a4a' : '#64ffda'}; font-weight: bold; min-width: 45px; text-align: center; font-size:15px;">${currentStock}</span>
-                            <button class="qty-btn" onclick="adjustLocalStock('${item.sku}', 1)">+</button>
-                            <button class="save-btn" id="save-btn-${item.sku}" onclick="saveStockToSheet('${item.sku}')">Save</button>
+                            <button class="qty-btn" onclick="adjustLocalStock('${safeSku}', -1)">-</button>
+                            <span id="stock-val-${item.sku}" style="color: ${isLow ? '#ff4a4a' : '#64ffda'}; font-weight: bold; min-width: 45px; text-align: center; font-size:15px;">${currentQty}</span>
+                            <button class="qty-btn" onclick="adjustLocalStock('${safeSku}', 1)">+</button>
+                            <button class="save-btn" id="save-btn-${item.sku}" onclick="saveStockToSheet('${safeSku}')">Save</button>
                         </div>
                     </div>
                 `;
             }).join('');
         }
 
-        // Real-time Search Box Filter
         function filterInventoryList() {
             const query = document.getElementById('inventorySearch').value.toLowerCase();
             const filtered = fullInventoryData.filter(item => 
                 item.sku.toLowerCase().includes(query) || 
-                (item.name && item.name.toLowerCase().includes(query))
+                (item['books name'] && item['books name'].toLowerCase().includes(query))
             );
             renderFullInventory(filtered);
         }
 
-        // Frontend Local Plus/Minus updates
         function adjustLocalStock(sku, change) {
             const span = document.getElementById(`stock-val-${sku}`);
             let currentVal = parseInt(span.innerText);
@@ -446,32 +448,27 @@
             if (newVal < 0) newVal = 0;
             span.innerText = newVal;
             
-            // Color changing boundary rules
             span.style.color = newVal < 200 ? '#ff4a4a' : '#64ffda';
             
-            // Track item in local main object array
             let itemObj = fullInventoryData.find(item => item.sku === sku);
-            if (itemObj) {
-                if (itemObj.stock !== undefined) itemObj.stock = newVal;
-                else itemObj.qty = newVal;
-            }
+            if (itemObj) itemObj.qty = newVal;
         }
 
-        // Save & Sync updated count back to Google Sheet
         async function saveStockToSheet(sku) {
             const btn = document.getElementById(`save-btn-${sku}`);
             const span = document.getElementById(`stock-val-${sku}`);
-            const finalStockValue = parseInt(span.innerText);
+            const finalQtyValue = parseInt(span.innerText);
             
             btn.innerText = "Syncing...";
             btn.disabled = true;
 
             try {
-                const response = await fetch(GOOGLE_SHEET_SCRIPT_URL, {
+                // Sent to Google Web App using standard text/plain to completely bypass CORS Preflight blocks
+                await fetch(GOOGLE_SHEET_SCRIPT_URL, {
                     method: 'POST',
-                    mode: 'no-cors', // standard cross-origin security override handling
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ sku: sku, stock: finalStockValue })
+                    mode: 'no-cors',
+                    headers: { 'Content-Type': 'text/plain' },
+                    body: JSON.stringify({ sku: sku, qty: finalQtyValue })
                 });
 
                 btn.innerText = "✓ Saved";
@@ -681,9 +678,9 @@
 
         window.addEventListener('DOMContentLoaded', () => {
             fetchAmazonOrders();
-            fetchSheetInventory(); // Sync active warehouse check on load
+            fetchSheetInventory(); 
             setInterval(fetchAmazonOrders, 600000); 
-            setInterval(fetchSheetInventory, 300000); // Autofetch inventory updates every 5 mins
+            setInterval(fetchSheetInventory, 300000); 
         });
     </script>
 </body>
