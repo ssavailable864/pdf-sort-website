@@ -232,7 +232,7 @@
 
         .adjust-btn-container {
             display: flex;
-            gap: 8px;
+            gap: 6px;
             align-items: center;
         }
 
@@ -251,6 +251,24 @@
             justify-content: center;
         }
         .qty-btn:hover { background: #64ffda; color: #0a192f; }
+
+        /* Direct Manual Input Box Style */
+        .direct-qty-input {
+            width: 55px;
+            height: 28px;
+            background: #0a192f;
+            border: 1px dashed #64ffda;
+            border-radius: 4px;
+            color: #64ffda;
+            text-align: center;
+            font-weight: bold;
+            font-size: 14px;
+        }
+        .direct-qty-input:focus {
+            outline: none;
+            border-style: solid;
+            background: #112240;
+        }
 
         .save-btn {
             background: #64ffda;
@@ -277,7 +295,7 @@
             <div id="global-alert-banner" class="alert-banner">⚠️ LOW STOCK DETECTED IN INVENTORY!</div>
             <div class="header-container" style="margin-bottom: 20px; padding-bottom: 10px; border-bottom: 1px solid #233554;">
                 <h2 style="background: linear-gradient(135deg, #ff4a4a 0%, #ff8585 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-size: 26px;">
-                    🔴 Low Stock Alerts (&lt; 200)
+                    🔴 Low Stock Alerts (&le; 200)
                 </h2>
             </div>
             <div id="low-stock-container" style="max-height: 220px; overflow-y: auto; margin-bottom: 15px;">
@@ -350,7 +368,7 @@
     <script>
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
 
-        // 🌟 APNI NEW GOOGLE WEB APP URL YAHAN PASTE KARO 🌟
+        // 🌟 APNI GOOGLE WEB APP URL YAHAN CHIPKAO 🌟
         const GOOGLE_SHEET_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyJtb1egjYXs-FSKKi_uMahvbObLiUUPGhCgdSpdsgDiu4FgQPL15h_JwmqBCLTA_2jDQ/exec";
 
         let fullInventoryData = [];
@@ -367,15 +385,15 @@
             }
         }
 
-        // Fetch Data from Sheet (Handling redirects flawlessly)
+        // Fetch Data from Sheet (CRITICAL FIX: <= 200 condition mapped correctly)
         async function fetchSheetInventory() {
             try {
                 const response = await fetch(GOOGLE_SHEET_SCRIPT_URL, { redirect: "follow" });
                 const data = await response.json();
                 fullInventoryData = data;
                 
-                // Read from sheet column "qty"
-                const lowStockItems = data.filter(item => Number(item.qty || 0) < 200);
+                // CRITICAL FIX: Changed condition to <= 200 so 200 items trigger alerts explicitly!
+                const lowStockItems = data.filter(item => Number(item.qty || 0) <= 200);
                 const lowStockContainer = document.getElementById('low-stock-container');
                 const alertBanner = document.getElementById('global-alert-banner');
 
@@ -402,7 +420,7 @@
             }
         }
 
-        // Render full table inside Adjustment screen
+        // Render full table with Direct Manual Typing Input Support
         function renderFullInventory(itemsToRender = fullInventoryData) {
             const listContainer = document.getElementById('full-inventory-list');
             if(itemsToRender.length === 0) {
@@ -412,18 +430,24 @@
 
             listContainer.innerHTML = itemsToRender.map((item) => {
                 const currentQty = Number(item.qty || 0);
-                const isLow = currentQty < 200;
-                // Escaping single quotes in titles safely
+                const isLow = currentQty <= 200;
                 const safeSku = item.sku.replace(/'/g, "\\'");
                 return `
                     <div class="item-row" style="background: #112240; border-bottom: 1px solid #233554;">
-                        <div class="item-info" style="max-width: 60%;">
-                            <h4 style="color: #ffffff;">${item['books name'] || 'Book Item'}</h4>
+                        <div class="item-info" style="max-width: 50%;">
+                            <h4 style="color: #ffffff; font-size:14px;">${item['books name'] || 'Book Item'}</h4>
                             <p style="color: #8892b0;">SKU: ${item.sku}</p>
                         </div>
                         <div class="adjust-btn-container">
                             <button class="qty-btn" onclick="adjustLocalStock('${safeSku}', -1)">-</button>
-                            <span id="stock-val-${item.sku}" style="color: ${isLow ? '#ff4a4a' : '#64ffda'}; font-weight: bold; min-width: 45px; text-align: center; font-size:15px;">${currentQty}</span>
+                            
+                            <input type="number" 
+                                   id="stock-val-${item.sku}" 
+                                   class="direct-qty-input" 
+                                   value="${currentQty}" 
+                                   style="color: ${isLow ? '#ff4a4a' : '#64ffda'};"
+                                   oninput="handleManualInputChange('${safeSku}')" />
+                                   
                             <button class="qty-btn" onclick="adjustLocalStock('${safeSku}', 1)">+</button>
                             <button class="save-btn" id="save-btn-${item.sku}" onclick="saveStockToSheet('${safeSku}')">Save</button>
                         </div>
@@ -441,14 +465,28 @@
             renderFullInventory(filtered);
         }
 
+        // Plus/Minus Button handler
         function adjustLocalStock(sku, change) {
-            const span = document.getElementById(`stock-val-${sku}`);
-            let currentVal = parseInt(span.innerText);
+            const inputField = document.getElementById(`stock-val-${sku}`);
+            let currentVal = parseInt(inputField.value) || 0;
             let newVal = currentVal + change;
             if (newVal < 0) newVal = 0;
-            span.innerText = newVal;
             
-            span.style.color = newVal < 200 ? '#ff4a4a' : '#64ffda';
+            inputField.value = newVal;
+            inputField.style.color = newVal <= 200 ? '#ff4a4a' : '#64ffda';
+            
+            let itemObj = fullInventoryData.find(item => item.sku === sku);
+            if (itemObj) itemObj.qty = newVal;
+        }
+
+        // Direct Type input handling logic 
+        function handleManualInputChange(sku) {
+            const inputField = document.getElementById(`stock-val-${sku}`);
+            let newVal = parseInt(inputField.value);
+            
+            if (isNaN(newVal) || newVal < 0) newVal = 0;
+            
+            inputField.style.color = newVal <= 200 ? '#ff4a4a' : '#64ffda';
             
             let itemObj = fullInventoryData.find(item => item.sku === sku);
             if (itemObj) itemObj.qty = newVal;
@@ -456,14 +494,13 @@
 
         async function saveStockToSheet(sku) {
             const btn = document.getElementById(`save-btn-${sku}`);
-            const span = document.getElementById(`stock-val-${sku}`);
-            const finalQtyValue = parseInt(span.innerText);
+            const inputField = document.getElementById(`stock-val-${sku}`);
+            const finalQtyValue = parseInt(inputField.value) || 0;
             
             btn.innerText = "Syncing...";
             btn.disabled = true;
 
             try {
-                // Sent to Google Web App using standard text/plain to completely bypass CORS Preflight blocks
                 await fetch(GOOGLE_SHEET_SCRIPT_URL, {
                     method: 'POST',
                     mode: 'no-cors',
