@@ -95,7 +95,7 @@
         }
 
         .upload-box p {
-            margin: 0 0 10px 0;
+            margin: 0;
             font-size: 18px;
             color: #1e293b;
             font-weight: 600;
@@ -488,7 +488,7 @@
             }
         }
 
-        // ================= QUANTITY BREAKDOWN ENGINE (WITH FULL SEPARATOR PAGES) =================
+        // ================= QUANTITY BREAKDOWN ENGINE (WITH ORDER ID LISTING) =================
         const fileInput = document.getElementById('pdfFile');
         const fileNameSpan = document.getElementById('fileName');
         const processBtn = document.getElementById('processBtn');
@@ -529,11 +529,13 @@
                     
                     let sku = extractSkuFromText(pageText);
                     let qty = extractQtyFromText(pageText);
+                    let orderId = extractOrderIdFromText(pageText);
                     
                     if (!groupedData[sku]) groupedData[sku] = {};
                     if (!groupedData[sku][qty]) groupedData[sku][qty] = [];
                     
-                    groupedData[sku][qty].push(i - 1);
+                    // Saving page index along with its extracted orderId
+                    groupedData[sku][qty].push({ index: i - 1, orderId: orderId });
                     updateProgress(Math.floor((i / totalPages) * 45) + 5);
                 }
 
@@ -543,9 +545,9 @@
                 const srcPdfDoc = await PDFLib.PDFDocument.load(arrayBuffer);
                 const outPdfDoc = await PDFLib.PDFDocument.create();
 
-                // Generate Master Summary Top Pages
+                // Master Summary Index Top Page Setup
                 let masterSummaryPage = outPdfDoc.addPage([595, 842]); 
-                masterSummaryPage.drawText("ALL SKU AND QUANTITY PIECES BREAKDOWN REPORT", { x: 50, y: 790, size: 18, color: PDFLib.rgb(0, 0.44, 1) });
+                masterSummaryPage.drawText("ALL SKU TOTAL LABELS SUMMARY", { x: 50, y: 790, size: 18, color: PDFLib.rgb(0, 0.44, 1) });
                 masterSummaryPage.drawText("----------------------------------------------------------------------------------", { x: 50, y: 770, size: 12, color: PDFLib.rgb(0.7, 0.7, 0.7) });
 
                 let currentY = 730;
@@ -588,7 +590,7 @@
 
                         if (currentY < 50) {
                             masterSummaryPage = outPdfDoc.addPage([595, 842]);
-                            masterSummaryPage.drawText("ALL SKU AND QUANTITY BREAKDOWN REPORT (Contd.)", { x: 50, y: 790, size: 16, color: PDFLib.rgb(0, 0.44, 1) });
+                            masterSummaryPage.drawText("ALL SKU TOTAL LABELS SUMMARY (Contd.)", { x: 50, y: 790, size: 16, color: PDFLib.rgb(0, 0.44, 1) });
                             currentY = 730;
                         }
                     }
@@ -600,36 +602,52 @@
 
                     if (currentY < 70) {
                         masterSummaryPage = outPdfDoc.addPage([595, 842]);
-                        masterSummaryPage.drawText("ALL SKU AND QUANTITY BREAKDOWN REPORT (Contd.)", { x: 50, y: 790, size: 16, color: PDFLib.rgb(0, 0.44, 1) });
+                        masterSummaryPage.drawText("ALL SKU TOTAL LABELS SUMMARY (Contd.)", { x: 50, y: 790, size: 16, color: PDFLib.rgb(0, 0.44, 1) });
                         currentY = 730;
                     }
                 }
 
-                // Step 2: Add Separator Pages WITH advanced metrics + Original Labels
+                // Step 2: Add Separator Pages WITH Order ID Lists + Labels
                 let totalBlocksProcessed = 0;
                 for (let sku of sortedSkus) {
                     let qtyBreakdown = groupedData[sku];
                     let sortedQtys = Object.keys(qtyBreakdown).sort((a, b) => Number(a) - Number(b));
 
                     for (let qty of sortedQtys) {
-                        let pageIndices = qtyBreakdown[qty];
+                        let records = qtyBreakdown[qty];
                         let stats = skuTotalsMap[sku][qty];
                         
-                        statusDiv.innerText = `Generating Batch Card & Stitching SKU: ${sku} [Qty: ${qty}]...`;
+                        statusDiv.innerText = `Generating Batch & Orders List Card for SKU: ${sku} [Qty: ${qty}]...`;
 
-                        // 🌟 DYNAMIC SEPARATOR BATCH CARD PAGE (AS REQUESTED) 🌟
-                        const separatorPage = outPdfDoc.addPage([595, 842]); 
+                        // 🌟 DYNAMIC SEPARATOR CARD PAGE WITH ORDER LISTS 🌟
+                        let separatorPage = outPdfDoc.addPage([595, 842]); 
                         
-                        separatorPage.drawText(`SKU: ${sku}`, { x: 80, y: 550, size: 24, color: PDFLib.rgb(0, 0, 0) });
-                        separatorPage.drawText(`LABEL INDIVIDUAL QTY: ${qty}`, { x: 80, y: 490, size: 20, color: PDFLib.rgb(0.85, 0, 0) });
-                        separatorPage.drawText(`TOTAL LABELS IN THIS BATCH: ${stats.labelCount}`, { x: 80, y: 430, size: 16, color: PDFLib.rgb(0.2, 0.2, 0.2) });
-                        separatorPage.drawText(`TOTAL THIS BATCH QTY: ${stats.pieceTotal}`, { x: 80, y: 380, size: 16, color: PDFLib.rgb(0, 0.4, 0.8) });
+                        separatorPage.drawText(`SKU: ${sku}`, { x: 60, y: 780, size: 22, color: PDFLib.rgb(0, 0, 0) });
+                        separatorPage.drawText(`LABEL INDIVIDUAL QTY: ${qty}`, { x: 60, y: 745, size: 18, color: PDFLib.rgb(0.85, 0, 0) });
+                        separatorPage.drawText(`TOTAL LABELS IN THIS BATCH: ${stats.labelCount}`, { x: 60, y: 715, size: 14, color: PDFLib.rgb(0.2, 0.2, 0.2) });
+                        separatorPage.drawText(`TOTAL THIS BATCH QTY: ${stats.pieceTotal}`, { x: 60, y: 690, size: 14, color: PDFLib.rgb(0, 0.4, 0.8) });
                         
-                        // Separator line design
-                        separatorPage.drawText("--------------------------------------------------------------------------------", { x: 80, y: 340, size: 12, color: PDFLib.rgb(0.7, 0.7, 0.7) });
+                        separatorPage.drawText("--------------------------------------------------------------------------------", { x: 60, y: 665, size: 12, color: PDFLib.rgb(0.7, 0.7, 0.7) });
+                        separatorPage.drawText("ORDER ID LIST IN THIS BATCH BUNDLE:", { x: 60, y: 645, size: 11, color: PDFLib.rgb(0.3, 0.3, 0.3) });
 
-                        // Now append the actual labels belonging to this batch block
-                        const copiedPages = await outPdfDoc.copyPages(srcPdfDoc, pageIndices);
+                        let orderY = 620;
+                        
+                        // Loop to write out each unique tracked order id line-by-line
+                        for (let r = 0; r < records.length; r++) {
+                            separatorPage.drawText(`${r + 1}.   ${records[r].orderId}`, { x: 75, y: orderY, size: 11, color: PDFLib.rgb(0.1, 0.1, 0.1) });
+                            orderY -= 20;
+
+                            // Handle extra overflow pages if there are a massive amount of orders in a single batch
+                            if (orderY < 60 && r < records.length - 1) {
+                                separatorPage = outPdfDoc.addPage([595, 842]);
+                                separatorPage.drawText(`SKU: ${sku} (Qty: ${qty}) - ORDER ID LIST CONTINUED:`, { x: 60, y: 790, size: 12, color: PDFLib.rgb(0.5, 0.5, 0.5) });
+                                orderY = 750;
+                            }
+                        }
+
+                        // Copying original shipping label page references
+                        let pageIndicesOnly = records.map(r => r.index);
+                        const copiedPages = await outPdfDoc.copyPages(srcPdfDoc, pageIndicesOnly);
                         copiedPages.forEach(page => outPdfDoc.addPage(page));
                     }
                     totalBlocksProcessed++;
@@ -643,7 +661,7 @@
                 const blob = new Blob([pdfBytes], { type: "application/pdf" });
                 const link = document.createElement('a');
                 link.href = URL.createObjectURL(blob);
-                link.download = "BATCH_SORTED_" + selectedFile.name;
+                link.download = "FINAL_TRACKED_SORTED_" + selectedFile.name;
                 document.body.appendChild(link);
                 link.click();
                 document.body.removeChild(link);
@@ -677,9 +695,8 @@
                         if(innerLine.includes("QTY") || innerLine.includes("SIZE")) {
                             if(j + 1 < lines.length) {
                                 let nextVal = lines[j+1].trim();
-                                if(/^\d+$/.test(nextVal)) {
-                                    return parseInt(nextVal);
-                                }
+                                if(/^\d+$/.test(nextVal)) return parseInt(nextVal);
+                                
                                 let parts = nextVal.split(/\s+/);
                                 for(let part of parts) {
                                     if(/^\d+$/.test(part) && part !== "0" && part.length <= 2) {
@@ -691,11 +708,8 @@
                     }
                 }
             }
-
             let directMatch = text.match(/Qty\s+(\d+)/i);
-            if(directMatch && directMatch[1]) {
-                return parseInt(directMatch[1]);
-            }
+            if(directMatch && directMatch[1]) return parseInt(directMatch[1]);
             return 1;
         }
 
@@ -743,6 +757,27 @@
                 if (/^[A-Z]{2,6}[0-9]{2,6}$/i.test(cleanWord)) return cleanWord;
             }
             return "UNKNOWN";
+        }
+
+        // 🌟 NEW FUNCTION: EXTRACTS DYNAMIC ORDER ID SAFELY FROM LABEL 🌟
+        function extractOrderIdFromText(text) {
+            if (!text) return "UNKNOWN_ORDER_ID";
+            
+            // Regex to find typical 18-digit order numbers ending with _1, _2 etc.
+            let orderPattern = /\b\d{15,20}_\d\b/;
+            let match = text.match(orderPattern);
+            if(match) return match[0];
+
+            // Backup scanner via line breaks
+            const lines = text.split('\n').map(l => l.trim()).filter(l => l);
+            for(let i = 0; i < lines.length; i++) {
+                if(lines[i].toUpperCase().includes("ORDER NO.") || lines[i].toUpperCase().includes("ORDER NO")) {
+                    if(i + 1 < lines.length) {
+                        return lines[i+1].trim();
+                    }
+                }
+            }
+            return "UNKNOWN_ORDER_ID";
         }
 
         async function fetchAmazonOrders() {
