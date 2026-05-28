@@ -252,7 +252,6 @@
         }
         .qty-btn:hover { background: #64ffda; color: #0a192f; }
 
-        /* Direct Manual Input Box Style */
         .direct-qty-input {
             width: 55px;
             height: 28px;
@@ -369,7 +368,7 @@
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
 
         // 🌟 APNI GOOGLE WEB APP URL YAHAN CHIPKAO 🌟
-        const GOOGLE_SHEET_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyJtb1egjYXs-FSKKi_uMahvbObLiUUPGhCgdSpdsgDiu4FgQPL15h_JwmqBCLTA_2jDQ/exec";
+        const GOOGLE_SHEET_SCRIPT_URL = "YOUR_NEW_DEPLOYED_WEB_APP_URL_HERE";
 
         let fullInventoryData = [];
 
@@ -385,14 +384,12 @@
             }
         }
 
-        // Fetch Data from Sheet (CRITICAL FIX: <= 200 condition mapped correctly)
         async function fetchSheetInventory() {
             try {
                 const response = await fetch(GOOGLE_SHEET_SCRIPT_URL, { redirect: "follow" });
                 const data = await response.json();
                 fullInventoryData = data;
                 
-                // CRITICAL FIX: Changed condition to <= 200 so 200 items trigger alerts explicitly!
                 const lowStockItems = data.filter(item => Number(item.qty || 0) <= 200);
                 const lowStockContainer = document.getElementById('low-stock-container');
                 const alertBanner = document.getElementById('global-alert-banner');
@@ -420,7 +417,6 @@
             }
         }
 
-        // Render full table with Direct Manual Typing Input Support
         function renderFullInventory(itemsToRender = fullInventoryData) {
             const listContainer = document.getElementById('full-inventory-list');
             if(itemsToRender.length === 0) {
@@ -440,14 +436,12 @@
                         </div>
                         <div class="adjust-btn-container">
                             <button class="qty-btn" onclick="adjustLocalStock('${safeSku}', -1)">-</button>
-                            
                             <input type="number" 
                                    id="stock-val-${item.sku}" 
                                    class="direct-qty-input" 
                                    value="${currentQty}" 
                                    style="color: ${isLow ? '#ff4a4a' : '#64ffda'};"
                                    oninput="handleManualInputChange('${safeSku}')" />
-                                   
                             <button class="qty-btn" onclick="adjustLocalStock('${safeSku}', 1)">+</button>
                             <button class="save-btn" id="save-btn-${item.sku}" onclick="saveStockToSheet('${safeSku}')">Save</button>
                         </div>
@@ -465,7 +459,6 @@
             renderFullInventory(filtered);
         }
 
-        // Plus/Minus Button handler
         function adjustLocalStock(sku, change) {
             const inputField = document.getElementById(`stock-val-${sku}`);
             let currentVal = parseInt(inputField.value) || 0;
@@ -479,15 +472,11 @@
             if (itemObj) itemObj.qty = newVal;
         }
 
-        // Direct Type input handling logic 
         function handleManualInputChange(sku) {
             const inputField = document.getElementById(`stock-val-${sku}`);
             let newVal = parseInt(inputField.value);
-            
             if (isNaN(newVal) || newVal < 0) newVal = 0;
-            
             inputField.style.color = newVal <= 200 ? '#ff4a4a' : '#64ffda';
-            
             let itemObj = fullInventoryData.find(item => item.sku === sku);
             if (itemObj) itemObj.qty = newVal;
         }
@@ -526,7 +515,7 @@
             }
         }
 
-        // ------------------ PRE-EXISTING MEESHO PDF SORTER ENGINE ------------------
+        // ================= NEW ADVANCED MULTI-QTY DETECTION PDF SORTER ENGINE =================
         const fileInput = document.getElementById('pdfFile');
         const fileNameSpan = document.getElementById('fileName');
         const processBtn = document.getElementById('processBtn');
@@ -556,64 +545,114 @@
                 const arrayBuffer = await selectedFile.arrayBuffer();
                 const pdfDocForRead = await pdfjsLib.getDocument({ data: arrayBuffer.slice(0) }).promise;
                 const totalPages = pdfDocForRead.numPages;
-                let grouped = {};
+                
+                // Group format: { SKU: { QtyValue: [pageIndexes] } }
+                let groupedData = {};
 
                 for (let i = 1; i <= totalPages; i++) {
-                    statusDiv.innerText = `Scanning Label ${i}/${totalPages} for SKU...`;
+                    statusDiv.innerText = `Scanning Label ${i}/${totalPages} for SKU & Qty...`;
                     const page = await pdfDocForRead.getPage(i);
                     const textContent = await page.getTextContent();
                     const pageText = textContent.items.map(item => item.str).join('\n');
+                    
                     let sku = extractSkuFromText(pageText);
-                    if (!grouped[sku]) grouped[sku] = [];
-                    grouped[sku].push(i - 1);
+                    let qty = extractQtyFromText(pageText); // Dynamic piece qty scanning
+                    
+                    if (!groupedData[sku]) {
+                        groupedData[sku] = {};
+                    }
+                    if (!groupedData[sku][qty]) {
+                        groupedData[sku][qty] = [];
+                    }
+                    groupedData[sku][qty].push(i - 1);
+                    
                     let percent = Math.floor((i / totalPages) * 45) + 5;
                     updateProgress(percent);
                 }
 
-                statusDiv.innerText = "Grouping & Sorting SKUs...";
+                statusDiv.innerText = "Processing Advanced Master Summary...";
                 updateProgress(55);
 
-                let sortedKeys = Object.keys(grouped).sort((a, b) => {
+                const srcPdfDoc = await PDFLib.PDFDocument.load(arrayBuffer);
+                const outPdfDoc = await PDFLib.PDFDocument.create();
+
+                // Generate Master Summary Page
+                let masterSummaryPage = outPdfDoc.addPage([595, 842]); 
+                masterSummaryPage.drawText("ADVANCED SKU & QUANTITY SUMMARY REPORT", { x: 50, y: 790, size: 18, color: PDFLib.rgb(0, 0.44, 1) });
+                masterSummaryPage.drawText("----------------------------------------------------------------------------------", { x: 50, y: 770, size: 12, color: PDFLib.rgb(0.7, 0.7, 0.7) });
+
+                let currentY = 730;
+                let sortedSkus = Object.keys(groupedData).sort((a, b) => {
                     if (a === "UNKNOWN") return 1;
                     if (b === "UNKNOWN") return -1;
                     return a.localeCompare(b);
                 });
 
-                const srcPdfDoc = await PDFLib.PDFDocument.load(arrayBuffer);
-                const outPdfDoc = await PDFLib.PDFDocument.create();
+                // Write detailed matrix on summary sheet
+                for (let sku of sortedSkus) {
+                    let qtyBreakdown = groupedData[sku];
+                    let sortedQtys = Object.keys(qtyBreakdown).sort((a, b) => Number(a) - Number(b));
+                    
+                    let skuTotalLabels = 0;
+                    let skuTotalPieces = 0;
 
-                let masterSummaryPage = outPdfDoc.addPage([595, 842]); 
-                masterSummaryPage.drawText("ALL SKU TOTAL LABELS SUMMARY", { x: 50, y: 790, size: 20, color: PDFLib.rgb(0, 0.44, 1) });
-                masterSummaryPage.drawText("----------------------------------------------------------------------------------", { x: 50, y: 770, size: 12, color: PDFLib.rgb(0.7, 0.7, 0.7) });
+                    // Header for the specific SKU block
+                    masterSummaryPage.drawText(`📦 SKU: ${sku}`, { x: 55, y: currentY, size: 13, color: PDFLib.rgb(0.1, 0.1, 0.1) });
+                    currentY -= 20;
 
-                let currentY = 730; 
-                for (let sku of sortedKeys) {
-                    let totalLabels = grouped[sku].length;
-                    masterSummaryPage.drawText(`SKU: ${sku}`, { x: 60, y: currentY, size: 13, color: PDFLib.rgb(0.1, 0.1, 0.1) });
-                    masterSummaryPage.drawText(`|   TOTAL LABELS: ${totalLabels}`, { x: 350, y: currentY, size: 13, color: PDFLib.rgb(0.3, 0.4, 0.6) });
-                    currentY -= 32; 
+                    for (let qty of sortedQtys) {
+                        let labelCount = qtyBreakdown[qty].length;
+                        let pieceTotal = labelCount * Number(qty);
+                        
+                        skuTotalLabels += labelCount;
+                        skuTotalPieces += pieceTotal;
 
-                    if (currentY < 60) {
+                        masterSummaryPage.drawText(`   -> Labels with [ Qty: ${qty} ]`, { x: 70, y: currentY, size: 11, color: PDFLib.rgb(0.3, 0.3, 0.3) });
+                        masterSummaryPage.drawText(`: ${labelCount} Labels`, { x: 230, y: currentY, size: 11, color: PDFLib.rgb(0.2, 0.5, 0.2) });
+                        masterSummaryPage.drawText(`(= ${pieceTotal} Pcs)`, { x: 330, y: currentY, size: 11, color: PDFLib.rgb(0.5, 0.4, 0.1) });
+                        currentY -= 18;
+
+                        if (currentY < 60) {
+                            masterSummaryPage = outPdfDoc.addPage([595, 842]);
+                            masterSummaryPage.drawText("ADVANCED SUMMARY REPORT (Contd.)", { x: 50, y: 790, size: 18, color: PDFLib.rgb(0, 0.44, 1) });
+                            currentY = 730;
+                        }
+                    }
+
+                    // Total Calculation for this item block
+                    masterSummaryPage.drawText(`   TOTAL: ${skuTotalLabels} Labels | Grand Total: ${skuTotalPieces} Pieces`, { x: 70, y: currentY, size: 11, color: PDFLib.rgb(0, 0.44, 1) });
+                    currentY -= 15;
+                    masterSummaryPage.drawText("   ..................................................................................", { x: 70, y: currentY, size: 10, color: PDFLib.rgb(0.8, 0.8, 0.8) });
+                    currentY -= 25;
+
+                    if (currentY < 80) {
                         masterSummaryPage = outPdfDoc.addPage([595, 842]);
-                        masterSummaryPage.drawText("ALL SKU TOTAL LABELS SUMMARY (Contd.)", { x: 50, y: 790, size: 20, color: PDFLib.rgb(0, 0.44, 1) });
-                        masterSummaryPage.drawText("----------------------------------------------------------------------------------", { x: 50, y: 770, size: 12, color: PDFLib.rgb(0.7, 0.7, 0.7) });
+                        masterSummaryPage.drawText("ADVANCED SUMMARY REPORT (Contd.)", { x: 50, y: 790, size: 18, color: PDFLib.rgb(0, 0.44, 1) });
                         currentY = 730;
                     }
                 }
 
-                for (let k = 0; k < sortedKeys.length; k++) {
-                    let sku = sortedKeys[k];
-                    let pageIndices = grouped[sku];
-                    statusDiv.innerText = `Stitching SKU: ${sku} (${pageIndices.length} Labels)...`;
+                // Stitch Pages in perfect grouped order
+                let totalBlocksProcessed = 0;
+                for (let sku of sortedSkus) {
+                    let qtyBreakdown = groupedData[sku];
+                    let sortedQtys = Object.keys(qtyBreakdown).sort((a, b) => Number(a) - Number(b));
 
-                    const copiedPages = await outPdfDoc.copyPages(srcPdfDoc, pageIndices);
-                    copiedPages.forEach(page => outPdfDoc.addPage(page));
+                    for (let qty of sortedQtys) {
+                        let pageIndices = qtyBreakdown[qty];
+                        statusDiv.innerText = `Stitching SKU: ${sku} [Qty: ${qty}] (${pageIndices.length} Labels)...`;
 
-                    const summaryPage = outPdfDoc.addPage([595, 842]); 
-                    summaryPage.drawText(`SKU: ${sku}`, { x: 100, y: 500, size: 26 });
-                    summaryPage.drawText(`TOTAL LABELS: ${pageIndices.length}`, { x: 100, y: 450, size: 22 });
+                        const copiedPages = await outPdfDoc.copyPages(srcPdfDoc, pageIndices);
+                        copiedPages.forEach(page => outPdfDoc.addPage(page));
 
-                    let percent = Math.floor((k / sortedKeys.length) * 40) + 55;
+                        // Add customized visual Separator page behind this exact sub-group
+                        const separatorPage = outPdfDoc.addPage([595, 842]); 
+                        separatorPage.drawText(`SKU: ${sku}`, { x: 100, y: 520, size: 26, color: PDFLib.rgb(0.05, 0.1, 0.2) });
+                        separatorPage.drawText(`LABEL TYPE QUANTITY: ${qty}`, { x: 100, y: 470, size: 22, color: PDFLib.rgb(1, 0.3, 0.3) });
+                        separatorPage.drawText(`TOTAL LABELS IN THIS BATCH: ${pageIndices.length}`, { x: 100, y: 420, size: 16 });
+                    }
+                    totalBlocksProcessed++;
+                    let percent = Math.floor((totalBlocksProcessed / sortedSkus.length) * 40) + 55;
                     updateProgress(percent);
                 }
 
@@ -624,7 +663,7 @@
                 const blob = new Blob([pdfBytes], { type: "application/pdf" });
                 const link = document.createElement('a');
                 link.href = URL.createObjectURL(blob);
-                link.download = "SORTED_" + selectedFile.name;
+                link.download = "ADVANCED_SORTED_" + selectedFile.name;
                 document.body.appendChild(link);
                 link.click();
                 document.body.removeChild(link);
@@ -643,6 +682,44 @@
         function updateProgress(value) {
             progressFill.style.width = value + '%';
             progressFill.innerText = value + '%';
+        }
+
+        // Dedicated helper function to perfectly pull ordered quantity per label
+        function extractQtyFromText(text) {
+            if (!text) return 1;
+            const lines = text.split('\n').map(l => l.trim()).filter(l => l);
+            
+            // Phase 1: Search standard Product Details structure block
+            for(let i=0; i < lines.length; i++) {
+                if(lines[i].toUpperCase().includes("PRODUCT DETAILS") || lines[i].toUpperCase().includes("TAX INVOICE")) {
+                    for(let j = Math.max(0, i-4); j < Math.min(lines.length, i+8); j++) {
+                        let combinedCheck = lines[j].toUpperCase();
+                        if((combinedCheck.startsWith("QTY") || combinedCheck.includes(" SIZE ")) && j+1 < lines.length) {
+                            let possibleQtyLine = lines[j+1].trim();
+                            let numMatch = possibleQtyLine.match(/^\d+$/);
+                            if(numMatch) return parseInt(numMatch[0]);
+                            
+                            // Splitting strings spaces just in case words merge horizontally
+                            let spaceTokens = possibleQtyLine.split(/\s+/);
+                            if(spaceTokens.length >= 2) {
+                                for(let token of spaceTokens) {
+                                    if(/^\d+$/.test(token) && token !== "0" && token.length <= 2) {
+                                        return parseInt(token);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Phase 2: Direct Regex pattern mapping fallback
+            let inlineMatch = text.match(/Qty\s+(\d+)/i) || text.match(/[\s\n]\d+[\s\n]Free\s+Size/i);
+            if(inlineMatch) {
+                let digit = inlineMatch[0].match(/\d+/);
+                if(digit) return parseInt(digit[0]);
+            }
+            return 1; // Safeguard Default standard fallback
         }
 
         function extractSkuFromText(text) {
@@ -691,14 +768,12 @@
             return "UNKNOWN";
         }
 
-        // PRE-EXISTING AMAZON LIVE FETCH ENGINE
         async function fetchAmazonOrders() {
             const countElement = document.getElementById('amazon-count');
             try {
                 const RENDER_BACKEND_URL = "https://aghmare-amazon-backend.onrender.com"; 
                 const response = await fetch(`${RENDER_BACKEND_URL}/api/amazon-orders`);
                 const data = await response.json();
-                
                 if(data.status === "success") {
                     countElement.innerText = data.total_today;
                 } else {
