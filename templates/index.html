@@ -488,7 +488,7 @@
             }
         }
 
-        // ================= QUANTITY BREAKDOWN ENGINE (SAME PAGE LOGIC) =================
+        // ================= QUANTITY BREAKDOWN ENGINE (WITH FULL SEPARATOR PAGES) =================
         const fileInput = document.getElementById('pdfFile');
         const fileNameSpan = document.getElementById('fileName');
         const processBtn = document.getElementById('processBtn');
@@ -521,7 +521,6 @@
                 
                 let groupedData = {};
 
-                // Step 1: Scan and identify parameters
                 for (let i = 1; i <= totalPages; i++) {
                     statusDiv.innerText = `Scanning Label ${i}/${totalPages}...`;
                     const page = await pdfDocForRead.getPage(i);
@@ -538,7 +537,7 @@
                     updateProgress(Math.floor((i / totalPages) * 45) + 5);
                 }
 
-                statusDiv.innerText = "Generating Consolidated Master Summary Report...";
+                statusDiv.innerText = "Generating Advanced Quantity Summary Page...";
                 updateProgress(55);
 
                 const srcPdfDoc = await PDFLib.PDFDocument.load(arrayBuffer);
@@ -556,7 +555,6 @@
                     return a.localeCompare(b);
                 });
 
-                // Calculate global variables for mapping summary blocks
                 let skuTotalsMap = {};
 
                 for (let sku of sortedSkus) {
@@ -607,7 +605,7 @@
                     }
                 }
 
-                // Step 2: Stitch original labels and stamp them on the fly (NO BLANK PAGES)
+                // Step 2: Add Separator Pages WITH advanced metrics + Original Labels
                 let totalBlocksProcessed = 0;
                 for (let sku of sortedSkus) {
                     let qtyBreakdown = groupedData[sku];
@@ -615,27 +613,24 @@
 
                     for (let qty of sortedQtys) {
                         let pageIndices = qtyBreakdown[qty];
-                        statusDiv.innerText = `Processing SKU: ${sku} [Qty: ${qty}] (${pageIndices.length} Labels)...`;
-
-                        const copiedPages = await outPdfDoc.copyPages(srcPdfDoc, pageIndices);
-                        
-                        // Exact required statistics string strings
                         let stats = skuTotalsMap[sku][qty];
-                        let headerString = `SKU: ${sku} | LABEL INDIVIDUAL QTY: ${qty} | TOTAL LABELS IN THIS BATCH: ${stats.labelCount} | TOTAL THIS BATCH QTY: ${stats.pieceTotal}`;
+                        
+                        statusDiv.innerText = `Generating Batch Card & Stitching SKU: ${sku} [Qty: ${qty}]...`;
 
-                        copiedPages.forEach(page => {
-                            const { width, height } = page.getSize();
-                            
-                            // Draws a clean identification line right on top of the actual label safely
-                            page.drawText(headerString, {
-                                x: 15,
-                                y: height - 18, 
-                                size: 9,
-                                color: PDFLib.rgb(1, 0, 0) // Highly visible red clean text
-                            });
-                            
-                            outPdfDoc.addPage(page);
-                        });
+                        // 🌟 DYNAMIC SEPARATOR BATCH CARD PAGE (AS REQUESTED) 🌟
+                        const separatorPage = outPdfDoc.addPage([595, 842]); 
+                        
+                        separatorPage.drawText(`SKU: ${sku}`, { x: 80, y: 550, size: 24, color: PDFLib.rgb(0, 0, 0) });
+                        separatorPage.drawText(`LABEL INDIVIDUAL QTY: ${qty}`, { x: 80, y: 490, size: 20, color: PDFLib.rgb(0.85, 0, 0) });
+                        separatorPage.drawText(`TOTAL LABELS IN THIS BATCH: ${stats.labelCount}`, { x: 80, y: 430, size: 16, color: PDFLib.rgb(0.2, 0.2, 0.2) });
+                        separatorPage.drawText(`TOTAL THIS BATCH QTY: ${stats.pieceTotal}`, { x: 80, y: 380, size: 16, color: PDFLib.rgb(0, 0.4, 0.8) });
+                        
+                        // Separator line design
+                        separatorPage.drawText("--------------------------------------------------------------------------------", { x: 80, y: 340, size: 12, color: PDFLib.rgb(0.7, 0.7, 0.7) });
+
+                        // Now append the actual labels belonging to this batch block
+                        const copiedPages = await outPdfDoc.copyPages(srcPdfDoc, pageIndices);
+                        copiedPages.forEach(page => outPdfDoc.addPage(page));
                     }
                     totalBlocksProcessed++;
                     updateProgress(Math.floor((totalBlocksProcessed / sortedSkus.length) * 40) + 55);
@@ -648,7 +643,7 @@
                 const blob = new Blob([pdfBytes], { type: "application/pdf" });
                 const link = document.createElement('a');
                 link.href = URL.createObjectURL(blob);
-                link.download = "CONSOLIDATED_SORTED_" + selectedFile.name;
+                link.download = "BATCH_SORTED_" + selectedFile.name;
                 document.body.appendChild(link);
                 link.click();
                 document.body.removeChild(link);
