@@ -4,8 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Meesho PDF SKU Sorter & Inventory</title>
+    <!-- PDF Libraries -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+    <!-- 🌟 Added Excel Library SheetJS 🌟 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <style>
         body { 
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
@@ -284,6 +287,7 @@
 </head>
 <body>
 
+    <!-- ================= DASHBOARD PANEL ================= -->
     <div id="dashboard-view" style="width: 100%; display: flex; flex-direction: column; align-items: center;">
         <div class="marquee-container">
             <div class="marquee-text">Developed by Waghmare Small Service &nbsp;&bull;&nbsp;  PDF Automation Tool &nbsp;&bull;&nbsp; Inventory Management System</div>
@@ -340,6 +344,7 @@
         </div>
     </div>
 
+    <!-- ================= ADJUSTMENT PANEL ================= -->
     <div id="adjustment-view" style="width: 100%; max-width: 650px; display: none;">
         <div class="main-card" style="background: #112240; border: 1px solid #233554; padding: 30px 25px;">
             <div class="header-container" style="border-bottom: 1px solid #233554; padding-bottom: 15px; margin-bottom: 20px;">
@@ -360,7 +365,7 @@
     <script>
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
 
-        const GOOGLE_SHEET_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyJtb1egjYXs-FSKKi_uMahvbObLiUUPGhCgdSpdsgDiu4FgQPL15h_JwmqBCLTA_2jDQ/exec";
+        const GOOGLE_SHEET_SCRIPT_URL = "YOUR_NEW_DEPLOYED_WEB_APP_URL_HERE";
         let fullInventoryData = [];
 
         function switchView(viewName) {
@@ -488,7 +493,7 @@
             }
         }
 
-        // ================= QUANTITY & SUMMARY REPORT GENERATOR ENGINE =================
+        // ================= QUANTITY & SUMMARY GENERATOR ENGINE =================
         const fileInput = document.getElementById('pdfFile');
         const fileNameSpan = document.getElementById('fileName');
         const processBtn = document.getElementById('processBtn');
@@ -538,27 +543,23 @@
                     updateProgress(Math.floor((i / totalPages) * 45) + 5);
                 }
 
-                statusDiv.innerText = "Generating Advanced Quantity Summary Page...";
+                statusDiv.innerText = "Preparing Excel Data Sheet...";
                 updateProgress(55);
 
                 const srcPdfDoc = await PDFLib.PDFDocument.load(arrayBuffer);
                 const outPdfDoc = await PDFLib.PDFDocument.create();
 
-                // FIRST PAGE SETUP: MASTER SUMMARY REPORT
-                let masterSummaryPage = outPdfDoc.addPage([595, 842]); 
-                masterSummaryPage.drawText("ALL SKU TOTAL LABELS SUMMARY", { x: 50, y: 790, size: 18, color: PDFLib.rgb(0, 0.44, 1) });
-                masterSummaryPage.drawText("----------------------------------------------------------------------------------", { x: 50, y: 770, size: 12, color: PDFLib.rgb(0.7, 0.7, 0.7) });
-
-                let currentY = 740;
                 let sortedSkus = Object.keys(groupedData).sort((a, b) => {
                     if (a === "UNKNOWN") return 1;
                     if (b === "UNKNOWN") return -1;
                     return a.localeCompare(b);
                 });
 
-                let skuTotalsMap = {};
-                
-                // 🌟 INITIALIZE OVERALL GRAND TOTAL COUNTERS 🌟
+                // 🌟 EXCEL SHEET STRUCTURE CREATION 🌟
+                let excelRows = [];
+                // Headers for Excel
+                excelRows.push(["SKU", "BATCH TYPE (QTY)", "METRICS / ORDER ID", "COUNT / VALUES"]);
+
                 let overallGrandTotalLabels = 0;
                 let overallGrandTotalPieces = 0;
 
@@ -569,10 +570,8 @@
                     let skuTotalLabels = 0;
                     let skuTotalPieces = 0;
 
-                    masterSummaryPage.drawText(`SKU: ${sku}`, { x: 55, y: currentY, size: 13, color: PDFLib.rgb(0, 0, 0) });
-                    currentY -= 18;
-
-                    skuTotalsMap[sku] = {};
+                    excelRows.push(["", "", "", ""]); // Blank Row for padding
+                    excelRows.push([`SKU: ${sku}`, "", "", ""]); // SKU Header Row
 
                     for (let qty of sortedQtys) {
                         let records = qtyBreakdown[qty];
@@ -582,64 +581,49 @@
                         skuTotalLabels += labelCount;
                         skuTotalPieces += pieceTotal;
 
-                        skuTotalsMap[sku][qty] = {
-                            labelCount: labelCount,
-                            pieceTotal: pieceTotal
-                        };
+                        // Add Batch Metric Header
+                        excelRows.push(["", `Labels with Qty ${qty}`, "Total Batch Labels Count", `${labelCount} Labels`]);
+                        excelRows.push(["", "", "Total Pieces Orders", `${pieceTotal} Pcs`]);
+                        excelRows.push(["", "", "--- ORDER IDs LIST ---", ""]);
 
-                        masterSummaryPage.drawText(`   Labels with Qty ${qty}`, { x: 70, y: currentY, size: 11, color: PDFLib.rgb(0.2, 0.2, 0.2) });
-                        masterSummaryPage.drawText(`: ${labelCount} Labels`, { x: 210, y: currentY, size: 11, color: PDFLib.rgb(0.1, 0.5, 0.1) });
-                        masterSummaryPage.drawText(`(= ${pieceTotal} Pcs Orders)`, { x: 310, y: currentY, size: 11, color: PDFLib.rgb(0.5, 0.4, 0.1) });
-                        currentY -= 16;
-
-                        masterSummaryPage.drawText(`   Order IDs for this batch:`, { x: 80, y: currentY, size: 9, color: PDFLib.rgb(0.5, 0.5, 0.5) });
-                        currentY -= 12;
-
+                        // Add All Order IDs line by line
                         for(let r=0; r < records.length; r++) {
-                            masterSummaryPage.drawText(`     - ${records[r].orderId}`, { x: 90, y: currentY, size: 9, color: PDFLib.rgb(0.3, 0.3, 0.3) });
-                            currentY -= 12;
-
-                            if (currentY < 50) {
-                                masterSummaryPage = outPdfDoc.addPage([595, 842]);
-                                masterSummaryPage.drawText("ALL SKU TOTAL LABELS SUMMARY (Contd.)", { x: 50, y: 790, size: 16, color: PDFLib.rgb(0, 0.44, 1) });
-                                currentY = 740;
-                            }
+                            excelRows.push(["", "", `Order ID [${r+1}]`, records[r].orderId]);
                         }
-                        currentY -= 6; 
                     }
 
-                    masterSummaryPage.drawText(`   TOTAL COMBINED: ${skuTotalLabels} Labels | Total Pieces: ${skuTotalPieces} Pcs`, { x: 70, y: currentY, size: 11, color: PDFLib.rgb(0, 0.3, 0.8) });
-                    currentY -= 14;
-                    masterSummaryPage.drawText("   ------------------------------------------------------------------------------", { x: 70, y: currentY, size: 10, color: PDFLib.rgb(0.8, 0.8, 0.8) });
-                    currentY -= 20;
+                    // SKU Combined Total summary inside Excel
+                    excelRows.push([`SKU [${sku}] COMBINED TOTAL`, "", "Total SKU Labels", skuTotalLabels]);
+                    excelRows.push(["", "", "Total SKU Pieces", skuTotalPieces]);
+                    excelRows.push(["---------------------------------------", "----------------------", "---------------------------", "-----------------"]);
 
-                    // Add to Overall Grand Total
                     overallGrandTotalLabels += skuTotalLabels;
                     overallGrandTotalPieces += skuTotalPieces;
-
-                    if (currentY < 120) { // Safety margin to avoid grand total getting truncated at page end
-                        masterSummaryPage = outPdfDoc.addPage([595, 842]);
-                        masterSummaryPage.drawText("ALL SKU TOTAL LABELS SUMMARY (Contd.)", { x: 50, y: 790, size: 16, color: PDFLib.rgb(0, 0.44, 1) });
-                        currentY = 740;
-                    }
                 }
 
-                // 🌟 DRAW EXCEL-STYLE FINAL GRAND TOTAL BLOCK 🌟
-                currentY -= 10;
-                masterSummaryPage.drawText("==================================================================================", { x: 50, y: currentY, size: 12, color: PDFLib.rgb(0, 0.44, 1) });
-                currentY -= 25;
-                masterSummaryPage.drawText("FINAL GRAND TOTAL REPORT (WHOLE PDF BATCH)", { x: 55, y: currentY, size: 14, color: PDFLib.rgb(0, 0, 0) });
-                currentY -= 22;
+                // 🌟 EXCEL GRAND TOTAL ROW 🌟
+                excelRows.push(["", "", "", ""]);
+                excelRows.push(["FINAL GRAND TOTAL REPORT (WHOLE PDF)", "", "", ""]);
+                excelRows.push(["", "", "TOTAL SHIPPING LABELS (PARSELS)", overallGrandTotalLabels]);
+                excelRows.push(["", "", "TOTAL COMBINED ITEMS / PIECES", overallGrandTotalPieces]);
+
+                // Generate & Download Excel File
+                const wb = XLSX.utils.book_new();
+                const ws = XLSX.utils.aoa_to_sheet(excelRows);
+                XLSX.utils.book_append_sheet(wb, ws, "Summary Report");
                 
-                masterSummaryPage.drawText(`TOTAL COMBINED SHIPPING LABELS : ${overallGrandTotalLabels} LABELS`, { x: 70, y: currentY, size: 12, color: PDFLib.rgb(0.1, 0.6, 0.2) });
-                currentY -= 18;
-                masterSummaryPage.drawText(`TOTAL COMBINED ITEMS / PIECES    : ${overallGrandTotalPieces} PCS`, { x: 70, y: currentY, size: 12, color: PDFLib.rgb(0.85, 0, 0) });
-                currentY -= 18;
-                
-                masterSummaryPage.drawText("==================================================================================", { x: 50, y: currentY, size: 12, color: PDFLib.rgb(0, 0.44, 1) });
+                statusDiv.innerText = "Downloading Excel File Summary...";
+                const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+                const excelBlob = new Blob([excelBuffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+                const excelLink = document.createElement('a');
+                excelLink.href = URL.createObjectURL(excelBlob);
+                excelLink.download = "SUMMARY_REPORT_" + selectedFile.name.replace(".pdf", "") + ".xlsx";
+                document.body.appendChild(excelLink);
+                excelLink.click();
+                document.body.removeChild(excelLink);
 
 
-                // Step 2: Add Clean Separator Blank Pages + Original Labels
+                // Step 2: Generate PDF with Separator Pages + Labels (Summary Page Removed from here!)
                 let totalBlocksProcessed = 0;
                 for (let sku of sortedSkus) {
                     let qtyBreakdown = groupedData[sku];
@@ -647,16 +631,18 @@
 
                     for (let qty of sortedQtys) {
                         let records = qtyBreakdown[qty];
-                        let stats = skuTotalsMap[sku][qty];
+                        let labelCount = records.length;
+                        let pieceTotal = labelCount * Number(qty);
                         
-                        statusDiv.innerText = `Generating Batch Card & Stitching SKU: ${sku} [Qty: ${qty}]...`;
+                        statusDiv.innerText = `Generating Separator Page & Stitching SKU: ${sku} [Qty: ${qty}]...`;
 
+                        // CLEAN SEPARATOR BLANK BATCH CARD PAGE (Bina Order ID ke, ekdum jhakas)
                         const separatorPage = outPdfDoc.addPage([595, 842]); 
                         
                         separatorPage.drawText(`SKU: ${sku}`, { x: 80, y: 550, size: 24, color: PDFLib.rgb(0, 0, 0) });
                         separatorPage.drawText(`LABEL INDIVIDUAL QTY: ${qty}`, { x: 80, y: 490, size: 20, color: PDFLib.rgb(0.85, 0, 0) });
-                        separatorPage.drawText(`TOTAL LABELS IN THIS BATCH: ${stats.labelCount}`, { x: 80, y: 430, size: 16, color: PDFLib.rgb(0.2, 0.2, 0.2) });
-                        separatorPage.drawText(`TOTAL THIS BATCH QTY: ${stats.pieceTotal}`, { x: 80, y: 380, size: 16, color: PDFLib.rgb(0, 0.4, 0.8) });
+                        separatorPage.drawText(`TOTAL LABELS IN THIS BATCH: ${labelCount}`, { x: 80, y: 430, size: 16, color: PDFLib.rgb(0.2, 0.2, 0.2) });
+                        separatorPage.drawText(`TOTAL THIS BATCH QTY: ${pieceTotal}`, { x: 80, y: 380, size: 16, color: PDFLib.rgb(0, 0.4, 0.8) });
                         
                         separatorPage.drawText("--------------------------------------------------------------------------------", { x: 80, y: 340, size: 12, color: PDFLib.rgb(0.7, 0.7, 0.7) });
 
@@ -668,20 +654,20 @@
                     updateProgress(Math.floor((totalBlocksProcessed / sortedSkus.length) * 40) + 55);
                 }
 
-                statusDiv.innerText = "Finalizing PDF Download...";
+                statusDiv.innerText = "Downloading Sorted PDF Labels...";
                 updateProgress(98);
 
                 const pdfBytes = await outPdfDoc.save();
                 const blob = new Blob([pdfBytes], { type: "application/pdf" });
                 const link = document.createElement('a');
                 link.href = URL.createObjectURL(blob);
-                link.download = "GRAND_TOTAL_SORTED_" + selectedFile.name;
+                link.download = "SORTED_LABELS_" + selectedFile.name;
                 document.body.appendChild(link);
                 link.click();
                 document.body.removeChild(link);
 
                 updateProgress(100);
-                statusDiv.innerHTML = `<span style="color:#28a745;">Process Completed Successfully!</span>`;
+                statusDiv.innerHTML = `<span style="color:#28a745;">Both PDF and Excel Downloaded Successfully!</span>`;
                 processBtn.disabled = false;
 
             } catch (error) {
@@ -727,7 +713,6 @@
             return 1;
         }
 
-        // Keep existing SKU identification
         function extractSkuFromText(text) {
             if (!text) return "UNKNOWN";
             const lines = text.split('\n').map(l => l.trim()).filter(l => l);
