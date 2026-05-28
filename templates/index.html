@@ -284,7 +284,6 @@
 </head>
 <body>
 
-    <!-- ================= DASHBOARD PANEL ================= -->
     <div id="dashboard-view" style="width: 100%; display: flex; flex-direction: column; align-items: center;">
         <div class="marquee-container">
             <div class="marquee-text">Developed by Waghmare Small Service &nbsp;&bull;&nbsp;  PDF Automation Tool &nbsp;&bull;&nbsp; Inventory Management System</div>
@@ -341,7 +340,6 @@
         </div>
     </div>
 
-    <!-- ================= ADJUSTMENT PANEL ================= -->
     <div id="adjustment-view" style="width: 100%; max-width: 650px; display: none;">
         <div class="main-card" style="background: #112240; border: 1px solid #233554; padding: 30px 25px;">
             <div class="header-container" style="border-bottom: 1px solid #233554; padding-bottom: 15px; margin-bottom: 20px;">
@@ -490,7 +488,7 @@
             }
         }
 
-        // ================= QUANTITY BREAKDOWN ENGINE (CLEANED) =================
+        // ================= QUANTITY BREAKDOWN ENGINE (SAME PAGE LOGIC) =================
         const fileInput = document.getElementById('pdfFile');
         const fileNameSpan = document.getElementById('fileName');
         const processBtn = document.getElementById('processBtn');
@@ -523,6 +521,7 @@
                 
                 let groupedData = {};
 
+                // Step 1: Scan and identify parameters
                 for (let i = 1; i <= totalPages; i++) {
                     statusDiv.innerText = `Scanning Label ${i}/${totalPages}...`;
                     const page = await pdfDocForRead.getPage(i);
@@ -539,13 +538,13 @@
                     updateProgress(Math.floor((i / totalPages) * 45) + 5);
                 }
 
-                statusDiv.innerText = "Generating Advanced Quantity Summary Page...";
+                statusDiv.innerText = "Generating Consolidated Master Summary Report...";
                 updateProgress(55);
 
                 const srcPdfDoc = await PDFLib.PDFDocument.load(arrayBuffer);
                 const outPdfDoc = await PDFLib.PDFDocument.create();
 
-                // Emojis completely removed to avoid encoding errors
+                // Generate Master Summary Top Pages
                 let masterSummaryPage = outPdfDoc.addPage([595, 842]); 
                 masterSummaryPage.drawText("ALL SKU AND QUANTITY PIECES BREAKDOWN REPORT", { x: 50, y: 790, size: 18, color: PDFLib.rgb(0, 0.44, 1) });
                 masterSummaryPage.drawText("----------------------------------------------------------------------------------", { x: 50, y: 770, size: 12, color: PDFLib.rgb(0.7, 0.7, 0.7) });
@@ -557,6 +556,9 @@
                     return a.localeCompare(b);
                 });
 
+                // Calculate global variables for mapping summary blocks
+                let skuTotalsMap = {};
+
                 for (let sku of sortedSkus) {
                     let qtyBreakdown = groupedData[sku];
                     let sortedQtys = Object.keys(qtyBreakdown).sort((a, b) => Number(a) - Number(b));
@@ -567,12 +569,19 @@
                     masterSummaryPage.drawText(`SKU: ${sku}`, { x: 55, y: currentY, size: 12, color: PDFLib.rgb(0.1, 0.1, 0.1) });
                     currentY -= 18;
 
+                    skuTotalsMap[sku] = {};
+
                     for (let qty of sortedQtys) {
                         let labelCount = qtyBreakdown[qty].length;
                         let pieceTotal = labelCount * Number(qty);
                         
                         skuTotalLabels += labelCount;
                         skuTotalPieces += pieceTotal;
+
+                        skuTotalsMap[sku][qty] = {
+                            labelCount: labelCount,
+                            pieceTotal: pieceTotal
+                        };
 
                         masterSummaryPage.drawText(`   Labels with Qty ${qty}`, { x: 70, y: currentY, size: 11, color: PDFLib.rgb(0.3, 0.3, 0.3) });
                         masterSummaryPage.drawText(`: ${labelCount} Labels`, { x: 210, y: currentY, size: 11, color: PDFLib.rgb(0.2, 0.5, 0.2) });
@@ -598,6 +607,7 @@
                     }
                 }
 
+                // Step 2: Stitch original labels and stamp them on the fly (NO BLANK PAGES)
                 let totalBlocksProcessed = 0;
                 for (let sku of sortedSkus) {
                     let qtyBreakdown = groupedData[sku];
@@ -605,15 +615,27 @@
 
                     for (let qty of sortedQtys) {
                         let pageIndices = qtyBreakdown[qty];
-                        statusDiv.innerText = `Stitching SKU: ${sku} [Qty: ${qty}] (${pageIndices.length} Labels)...`;
+                        statusDiv.innerText = `Processing SKU: ${sku} [Qty: ${qty}] (${pageIndices.length} Labels)...`;
 
                         const copiedPages = await outPdfDoc.copyPages(srcPdfDoc, pageIndices);
-                        copiedPages.forEach(page => outPdfDoc.addPage(page));
+                        
+                        // Exact required statistics string strings
+                        let stats = skuTotalsMap[sku][qty];
+                        let headerString = `SKU: ${sku} | LABEL INDIVIDUAL QTY: ${qty} | TOTAL LABELS IN THIS BATCH: ${stats.labelCount} | TOTAL THIS BATCH QTY: ${stats.pieceTotal}`;
 
-                        const separatorPage = outPdfDoc.addPage([595, 842]); 
-                        separatorPage.drawText(`SKU: ${sku}`, { x: 100, y: 520, size: 26 });
-                        separatorPage.drawText(`LABEL INDIVIDUAL QTY: ${qty}`, { x: 100, y: 470, size: 22, color: PDFLib.rgb(1, 0, 0) });
-                        separatorPage.drawText(`TOTAL LABELS IN THIS BATCH: ${pageIndices.length}`, { x: 100, y: 420, size: 16 });
+                        copiedPages.forEach(page => {
+                            const { width, height } = page.getSize();
+                            
+                            // Draws a clean identification line right on top of the actual label safely
+                            page.drawText(headerString, {
+                                x: 15,
+                                y: height - 18, 
+                                size: 9,
+                                color: PDFLib.rgb(1, 0, 0) // Highly visible red clean text
+                            });
+                            
+                            outPdfDoc.addPage(page);
+                        });
                     }
                     totalBlocksProcessed++;
                     updateProgress(Math.floor((totalBlocksProcessed / sortedSkus.length) * 40) + 55);
@@ -626,7 +648,7 @@
                 const blob = new Blob([pdfBytes], { type: "application/pdf" });
                 const link = document.createElement('a');
                 link.href = URL.createObjectURL(blob);
-                link.download = "QUANTITY_SORTED_" + selectedFile.name;
+                link.download = "CONSOLIDATED_SORTED_" + selectedFile.name;
                 document.body.appendChild(link);
                 link.click();
                 document.body.removeChild(link);
