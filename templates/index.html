@@ -4,10 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Meesho PDF SKU Sorter & Inventory</title>
-    <!-- PDF Libraries -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
-    <!-- 🌟 Added Excel Library SheetJS 🌟 -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <style>
         body { 
@@ -287,7 +285,6 @@
 </head>
 <body>
 
-    <!-- ================= DASHBOARD PANEL ================= -->
     <div id="dashboard-view" style="width: 100%; display: flex; flex-direction: column; align-items: center;">
         <div class="marquee-container">
             <div class="marquee-text">Developed by Waghmare Small Service &nbsp;&bull;&nbsp;  PDF Automation Tool &nbsp;&bull;&nbsp; Inventory Management System</div>
@@ -344,7 +341,6 @@
         </div>
     </div>
 
-    <!-- ================= ADJUSTMENT PANEL ================= -->
     <div id="adjustment-view" style="width: 100%; max-width: 650px; display: none;">
         <div class="main-card" style="background: #112240; border: 1px solid #233554; padding: 30px 25px;">
             <div class="header-container" style="border-bottom: 1px solid #233554; padding-bottom: 15px; margin-bottom: 20px;">
@@ -355,7 +351,7 @@
             <button class="btn" style="background: #233554; color: white; margin-top: 0; margin-bottom: 20px; padding: 10px; font-size: 14px;" onclick="switchView('dashboard')">
                 Back to Dashboard
             </button>
-            <input type="text" id="inventorySearch" class="search-input" placeholder="Search SKU or Book Name..." oninput="filterInventoryList()">
+            <input type="text" id="inventorySearch" class="search-input" placeholder="Search SKU (Busybee Code) or Book Name..." oninput="filterInventoryList()">
             <div id="full-inventory-list" style="max-height: 450px; overflow-y: auto;">
                 <p style="color: #8892b0; text-align: center;">Loading full catalog from Google Sheet...</p>
             </div>
@@ -365,7 +361,7 @@
     <script>
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
 
-        const GOOGLE_SHEET_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyJtb1egjYXs-FSKKi_uMahvbObLiUUPGhCgdSpdsgDiu4FgQPL15h_JwmqBCLTA_2jDQ/exec";
+        const GOOGLE_SHEET_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzcLAYE0B6Mp1Ztx0XHQQqMcICv2Y3xU22bR7Gxzfv-pg__7tfOfZrWVYf_y7voYO8f/exec";
         let fullInventoryData = [];
 
         function switchView(viewName) {
@@ -384,8 +380,15 @@
             try {
                 const response = await fetch(GOOGLE_SHEET_SCRIPT_URL, { redirect: "follow" });
                 const data = await response.json();
-                fullInventoryData = data;
-                const lowStockItems = data.filter(item => Number(item.qty || 0) <= 200);
+                
+                // 🌟 Mapped perfectly to handle: Busybee Code -> sku, Book Name -> name, Closing Stock -> qty
+                fullInventoryData = data.map(item => ({
+                    sku: item['Busybee Code'] || item.sku || 'UNKNOWN',
+                    name: item['Book Name'] || item['books name'] || item.name || 'Unnamed Book',
+                    qty: Number(item['Closing Stock'] || item.qty || 0)
+                }));
+
+                const lowStockItems = fullInventoryData.filter(item => item.qty <= 200);
                 const lowStockContainer = document.getElementById('low-stock-container');
                 const alertBanner = document.getElementById('global-alert-banner');
 
@@ -395,7 +398,7 @@
                     lowStockContainer.innerHTML = lowStockItems.map(item => `
                         <div class="item-row">
                             <div class="item-info">
-                                <h4>${item['books name'] || item.name || 'Unnamed Item'}</h4>
+                                <h4>${item.name}</h4>
                                 <p>SKU: ${item.sku}</p>
                             </div>
                             <div class="stock-badge">${item.qty} Left</div>
@@ -417,18 +420,17 @@
                 return;
             }
             listContainer.innerHTML = itemsToRender.map((item) => {
-                const currentQty = Number(item.qty || 0);
-                const isLow = currentQty <= 200;
+                const isLow = item.qty <= 200;
                 const safeSku = item.sku.replace(/'/g, "\\'");
                 return `
                     <div class="item-row" style="background: #112240; border-bottom: 1px solid #233554;">
                         <div class="item-info" style="max-width: 50%;">
-                            <h4 style="color: #ffffff; font-size:14px;">${item['books name'] || 'Book Item'}</h4>
+                            <h4 style="color: #ffffff; font-size:14px;">${item.name}</h4>
                             <p style="color: #8892b0;">SKU: ${item.sku}</p>
                         </div>
                         <div class="adjust-btn-container">
                             <button class="qty-btn" onclick="adjustLocalStock('${safeSku}', -1)">-</button>
-                            <input type="number" id="stock-val-${item.sku}" class="direct-qty-input" value="${currentQty}" style="color: ${isLow ? '#ff4a4a' : '#64ffda'};" oninput="handleManualInputChange('${safeSku}')" />
+                            <input type="number" id="stock-val-${item.sku}" class="direct-qty-input" value="${item.qty}" style="color: ${isLow ? '#ff4a4a' : '#64ffda'};" oninput="handleManualInputChange('${safeSku}')" />
                             <button class="qty-btn" onclick="adjustLocalStock('${safeSku}', 1)">+</button>
                             <button class="save-btn" id="save-btn-${item.sku}" onclick="saveStockToSheet('${safeSku}')">Save</button>
                         </div>
@@ -441,7 +443,7 @@
             const query = document.getElementById('inventorySearch').value.toLowerCase();
             const filtered = fullInventoryData.filter(item => 
                 item.sku.toLowerCase().includes(query) || 
-                (item['books name'] && item['books name'].toLowerCase().includes(query))
+                item.name.toLowerCase().includes(query)
             );
             renderFullInventory(filtered);
         }
@@ -555,9 +557,7 @@
                     return a.localeCompare(b);
                 });
 
-                // 🌟 EXCEL SHEET STRUCTURE CREATION 🌟
                 let excelRows = [];
-                // Headers for Excel
                 excelRows.push(["SKU", "BATCH TYPE (QTY)", "METRICS / ORDER ID", "COUNT / VALUES"]);
 
                 let overallGrandTotalLabels = 0;
@@ -570,8 +570,8 @@
                     let skuTotalLabels = 0;
                     let skuTotalPieces = 0;
 
-                    excelRows.push(["", "", "", ""]); // Blank Row for padding
-                    excelRows.push([`SKU: ${sku}`, "", "", ""]); // SKU Header Row
+                    excelRows.push(["", "", "", ""]); 
+                    excelRows.push([`SKU: ${sku}`, "", "", ""]); 
 
                     for (let qty of sortedQtys) {
                         let records = qtyBreakdown[qty];
@@ -581,18 +581,15 @@
                         skuTotalLabels += labelCount;
                         skuTotalPieces += pieceTotal;
 
-                        // Add Batch Metric Header
                         excelRows.push(["", `Labels with Qty ${qty}`, "Total Batch Labels Count", `${labelCount} Labels`]);
                         excelRows.push(["", "", "Total Pieces Orders", `${pieceTotal} Pcs`]);
                         excelRows.push(["", "", "--- ORDER IDs LIST ---", ""]);
 
-                        // Add All Order IDs line by line
                         for(let r=0; r < records.length; r++) {
                             excelRows.push(["", "", `Order ID [${r+1}]`, records[r].orderId]);
                         }
                     }
 
-                    // SKU Combined Total summary inside Excel
                     excelRows.push([`SKU [${sku}] COMBINED TOTAL`, "", "Total SKU Labels", skuTotalLabels]);
                     excelRows.push(["", "", "Total SKU Pieces", skuTotalPieces]);
                     excelRows.push(["---------------------------------------", "----------------------", "---------------------------", "-----------------"]);
@@ -601,13 +598,11 @@
                     overallGrandTotalPieces += skuTotalPieces;
                 }
 
-                // 🌟 EXCEL GRAND TOTAL ROW 🌟
                 excelRows.push(["", "", "", ""]);
                 excelRows.push(["FINAL GRAND TOTAL REPORT (WHOLE PDF)", "", "", ""]);
                 excelRows.push(["", "", "TOTAL SHIPPING LABELS (PARSELS)", overallGrandTotalLabels]);
                 excelRows.push(["", "", "TOTAL COMBINED ITEMS / PIECES", overallGrandTotalPieces]);
 
-                // Generate & Download Excel File
                 const wb = XLSX.utils.book_new();
                 const ws = XLSX.utils.aoa_to_sheet(excelRows);
                 XLSX.utils.book_append_sheet(wb, ws, "Summary Report");
@@ -622,8 +617,6 @@
                 excelLink.click();
                 document.body.removeChild(excelLink);
 
-
-                // Step 2: Generate PDF with Separator Pages + Labels (Summary Page Removed from here!)
                 let totalBlocksProcessed = 0;
                 for (let sku of sortedSkus) {
                     let qtyBreakdown = groupedData[sku];
@@ -636,7 +629,6 @@
                         
                         statusDiv.innerText = `Generating Separator Page & Stitching SKU: ${sku} [Qty: ${qty}]...`;
 
-                        // CLEAN SEPARATOR BLANK BATCH CARD PAGE (Bina Order ID ke, ekdum jhakas)
                         const separatorPage = outPdfDoc.addPage([595, 842]); 
                         
                         separatorPage.drawText(`SKU: ${sku}`, { x: 80, y: 550, size: 24, color: PDFLib.rgb(0, 0, 0) });
