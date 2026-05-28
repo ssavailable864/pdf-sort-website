@@ -544,7 +544,7 @@
                 const srcPdfDoc = await PDFLib.PDFDocument.load(arrayBuffer);
                 const outPdfDoc = await PDFLib.PDFDocument.create();
 
-                // 🌟 FIRST PAGE SETUP: MASTER SUMMARY REPORT WITH ORDER IDs 🌟
+                // FIRST PAGE SETUP: MASTER SUMMARY REPORT
                 let masterSummaryPage = outPdfDoc.addPage([595, 842]); 
                 masterSummaryPage.drawText("ALL SKU TOTAL LABELS SUMMARY", { x: 50, y: 790, size: 18, color: PDFLib.rgb(0, 0.44, 1) });
                 masterSummaryPage.drawText("----------------------------------------------------------------------------------", { x: 50, y: 770, size: 12, color: PDFLib.rgb(0.7, 0.7, 0.7) });
@@ -557,6 +557,10 @@
                 });
 
                 let skuTotalsMap = {};
+                
+                // 🌟 INITIALIZE OVERALL GRAND TOTAL COUNTERS 🌟
+                let overallGrandTotalLabels = 0;
+                let overallGrandTotalPieces = 0;
 
                 for (let sku of sortedSkus) {
                     let qtyBreakdown = groupedData[sku];
@@ -565,7 +569,6 @@
                     let skuTotalLabels = 0;
                     let skuTotalPieces = 0;
 
-                    // Write Heading for SKU Block
                     masterSummaryPage.drawText(`SKU: ${sku}`, { x: 55, y: currentY, size: 13, color: PDFLib.rgb(0, 0, 0) });
                     currentY -= 18;
 
@@ -584,13 +587,11 @@
                             pieceTotal: pieceTotal
                         };
 
-                        // Print Metrics Line
                         masterSummaryPage.drawText(`   Labels with Qty ${qty}`, { x: 70, y: currentY, size: 11, color: PDFLib.rgb(0.2, 0.2, 0.2) });
                         masterSummaryPage.drawText(`: ${labelCount} Labels`, { x: 210, y: currentY, size: 11, color: PDFLib.rgb(0.1, 0.5, 0.1) });
                         masterSummaryPage.drawText(`(= ${pieceTotal} Pcs Orders)`, { x: 310, y: currentY, size: 11, color: PDFLib.rgb(0.5, 0.4, 0.1) });
                         currentY -= 16;
 
-                        // 🌟 PRINTING ALL TRACKED ORDER IDs UNDER THIS SKU BATCH 🌟
                         masterSummaryPage.drawText(`   Order IDs for this batch:`, { x: 80, y: currentY, size: 9, color: PDFLib.rgb(0.5, 0.5, 0.5) });
                         currentY -= 12;
 
@@ -598,7 +599,6 @@
                             masterSummaryPage.drawText(`     - ${records[r].orderId}`, { x: 90, y: currentY, size: 9, color: PDFLib.rgb(0.3, 0.3, 0.3) });
                             currentY -= 12;
 
-                            // Summary Page Auto Overflow handler
                             if (currentY < 50) {
                                 masterSummaryPage = outPdfDoc.addPage([595, 842]);
                                 masterSummaryPage.drawText("ALL SKU TOTAL LABELS SUMMARY (Contd.)", { x: 50, y: 790, size: 16, color: PDFLib.rgb(0, 0.44, 1) });
@@ -613,14 +613,33 @@
                     masterSummaryPage.drawText("   ------------------------------------------------------------------------------", { x: 70, y: currentY, size: 10, color: PDFLib.rgb(0.8, 0.8, 0.8) });
                     currentY -= 20;
 
-                    if (currentY < 70) {
+                    // Add to Overall Grand Total
+                    overallGrandTotalLabels += skuTotalLabels;
+                    overallGrandTotalPieces += skuTotalPieces;
+
+                    if (currentY < 120) { // Safety margin to avoid grand total getting truncated at page end
                         masterSummaryPage = outPdfDoc.addPage([595, 842]);
                         masterSummaryPage.drawText("ALL SKU TOTAL LABELS SUMMARY (Contd.)", { x: 50, y: 790, size: 16, color: PDFLib.rgb(0, 0.44, 1) });
                         currentY = 740;
                     }
                 }
 
-                // Step 2: Add Clean Separator Blank Pages (BINA ORDER ID KE) + Original Labels
+                // 🌟 DRAW EXCEL-STYLE FINAL GRAND TOTAL BLOCK 🌟
+                currentY -= 10;
+                masterSummaryPage.drawText("==================================================================================", { x: 50, y: currentY, size: 12, color: PDFLib.rgb(0, 0.44, 1) });
+                currentY -= 25;
+                masterSummaryPage.drawText("FINAL GRAND TOTAL REPORT (WHOLE PDF BATCH)", { x: 55, y: currentY, size: 14, color: PDFLib.rgb(0, 0, 0) });
+                currentY -= 22;
+                
+                masterSummaryPage.drawText(`TOTAL COMBINED SHIPPING LABELS : ${overallGrandTotalLabels} LABELS`, { x: 70, y: currentY, size: 12, color: PDFLib.rgb(0.1, 0.6, 0.2) });
+                currentY -= 18;
+                masterSummaryPage.drawText(`TOTAL COMBINED ITEMS / PIECES    : ${overallGrandTotalPieces} PCS`, { x: 70, y: currentY, size: 12, color: PDFLib.rgb(0.85, 0, 0) });
+                currentY -= 18;
+                
+                masterSummaryPage.drawText("==================================================================================", { x: 50, y: currentY, size: 12, color: PDFLib.rgb(0, 0.44, 1) });
+
+
+                // Step 2: Add Clean Separator Blank Pages + Original Labels
                 let totalBlocksProcessed = 0;
                 for (let sku of sortedSkus) {
                     let qtyBreakdown = groupedData[sku];
@@ -632,7 +651,6 @@
                         
                         statusDiv.innerText = `Generating Batch Card & Stitching SKU: ${sku} [Qty: ${qty}]...`;
 
-                        // 🌟 CLEAN SEPARATOR BLANK BATCH CARD PAGE (Bina Order ID ke, jaisa pehle tha!) 🌟
                         const separatorPage = outPdfDoc.addPage([595, 842]); 
                         
                         separatorPage.drawText(`SKU: ${sku}`, { x: 80, y: 550, size: 24, color: PDFLib.rgb(0, 0, 0) });
@@ -640,10 +658,8 @@
                         separatorPage.drawText(`TOTAL LABELS IN THIS BATCH: ${stats.labelCount}`, { x: 80, y: 430, size: 16, color: PDFLib.rgb(0.2, 0.2, 0.2) });
                         separatorPage.drawText(`TOTAL THIS BATCH QTY: ${stats.pieceTotal}`, { x: 80, y: 380, size: 16, color: PDFLib.rgb(0, 0.4, 0.8) });
                         
-                        // Separator line design
                         separatorPage.drawText("--------------------------------------------------------------------------------", { x: 80, y: 340, size: 12, color: PDFLib.rgb(0.7, 0.7, 0.7) });
 
-                        // Append original shipping labels
                         let pageIndicesOnly = records.map(r => r.index);
                         const copiedPages = await outPdfDoc.copyPages(srcPdfDoc, pageIndicesOnly);
                         copiedPages.forEach(page => outPdfDoc.addPage(page));
@@ -659,7 +675,7 @@
                 const blob = new Blob([pdfBytes], { type: "application/pdf" });
                 const link = document.createElement('a');
                 link.href = URL.createObjectURL(blob);
-                link.download = "SUMMARY_TRACKED_SORTED_" + selectedFile.name;
+                link.download = "GRAND_TOTAL_SORTED_" + selectedFile.name;
                 document.body.appendChild(link);
                 link.click();
                 document.body.removeChild(link);
@@ -711,6 +727,7 @@
             return 1;
         }
 
+        // Keep existing SKU identification
         function extractSkuFromText(text) {
             if (!text) return "UNKNOWN";
             const lines = text.split('\n').map(l => l.trim()).filter(l => l);
