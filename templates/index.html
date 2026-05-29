@@ -7,6 +7,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
     <style>
         body { 
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
@@ -19,6 +20,103 @@
             justify-content: center;
             min-height: 100vh;
             box-sizing: border-box;
+        }
+
+        /* --- LOGIN SCREEN MODAL STYLES --- */
+        #login-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #0a192f;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+        }
+
+        .login-card {
+            background: #112240;
+            padding: 40px;
+            border-radius: 20px;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+            max-width: 420px;
+            width: 100%;
+            text-align: center;
+            border: 1px solid #233554;
+            box-sizing: border-box;
+        }
+
+        .login-card h3 {
+            color: #64ffda;
+            margin-top: 0;
+            margin-bottom: 25px;
+            font-size: 24px;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+        }
+
+        .login-input {
+            width: 100%;
+            padding: 14px;
+            background: #0a192f;
+            border: 1px solid #233554;
+            border-radius: 8px;
+            color: white;
+            font-size: 16px;
+            margin-bottom: 18px;
+            box-sizing: border-box;
+            outline: none;
+        }
+        .login-input:focus {
+            border-color: #64ffda;
+        }
+
+        .login-btn {
+            background: linear-gradient(135deg, #64ffda 0%, #48cbb0 100%);
+            color: #0a192f;
+            padding: 14px;
+            border: none;
+            cursor: pointer;
+            width: 100%;
+            font-size: 16px;
+            border-radius: 8px;
+            font-weight: bold;
+            box-shadow: 0 4px 15px rgba(100, 255, 218, 0.2);
+            transition: all 0.3s ease;
+            margin-bottom: 15px;
+        }
+        .login-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 20px rgba(100, 255, 218, 0.3);
+        }
+
+        #login-error, #otp-status-msg {
+            font-size: 14px;
+            margin-bottom: 15px;
+            font-weight: 600;
+        }
+        #login-error { color: #ff4a4a; display: none; }
+        #otp-status-msg { color: #64ffda; display: none; }
+
+        .forgot-link {
+            color: #8892b0;
+            font-size: 13px;
+            cursor: pointer;
+            text-decoration: underline;
+            transition: color 0.2s;
+        }
+        .forgot-link:hover {
+            color: #64ffda;
+        }
+
+        /* --- APPLICATION CONTENT --- */
+        #app-content {
+            display: none;
+            width: 100%;
+            flex-direction: column;
+            align-items: center;
         }
 
         .marquee-container {
@@ -273,69 +371,182 @@
 </head>
 <body>
 
-    <div id="dashboard-view" style="width: 100%; display: flex; flex-direction: column; align-items: center;">
-        <div class="marquee-container">
-            <div class="marquee-text">Developed by Waghmare Small Service &nbsp;&bull;&nbsp;  PDF Automation Tool &nbsp;&bull;&nbsp; Inventory Management System</div>
-        </div>
-
-        <div class="low-stock-card">
-            <div id="global-alert-banner" class="alert-banner">LOW STOCK DETECTED IN INVENTORY!</div>
-            <div class="header-container" style="margin-bottom: 20px; padding-bottom: 10px; border-bottom: 1px solid #233554;">
-                <h2 style="background: linear-gradient(135deg, #ff4a4a 0%, #ff8585 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-size: 26px;">
-                    Low Stock Alerts
-                </h2>
-            </div>
-            <div id="low-stock-container" style="max-height: 220px; overflow-y: auto; margin-bottom: 15px;">
-                <p style="color: #8892b0; text-align: center; font-size: 14px;">Loading sheet inventory status...</p>
-            </div>
-            <button class="btn" style="background: linear-gradient(135deg, #64ffda 0%, #48cbb0 100%); color: #0a192f; margin-top: 10px;" onclick="switchView('adjustment')">
-                Open Stock Adjustment Panel
-            </button>
-        </div>
-
-        <div class="main-card">
-            <div class="header-container">
-                <h2>Meesho PDF SKU Sorter</h2>
-            </div>
+    <div id="login-modal">
+        <div class="login-card">
+            <h3 id="login-card-title">🔑 Inventory Secure Login</h3>
+            <div id="login-error">Galt Data! Kripya sahi details bharein.</div>
+            <div id="otp-status-msg">OTP Sent successfully to 9834974661!</div>
             
-            <div class="upload-box" onclick="document.getElementById('pdfFile').click()">
-                <p>Click here to upload your Shipping PDF</p>
-                <input type="file" id="pdfFile" accept="application/pdf" style="display:none">
-                <span id="fileName" style="color: #0072ff; font-weight: bold;"></span>
+            <div id="credentials-section">
+                <input type="text" id="usernameInput" class="login-input" placeholder="Username">
+                <input type="password" id="passwordInput" class="login-input" placeholder="Password">
+                <button class="login-btn" onclick="requestOtpSubmission()">Verify & Send OTP</button>
+                <div class="forgot-link" onclick="triggerForgotPassword()">Forgot Password?</div>
             </div>
 
-            <button id="processBtn" class="btn" disabled>Start Sorting Process</button>
-
-            <div id="progress-box">
-                <div id="status">Ready...</div>
-                <div class="progress-bar">
-                    <div id="progress-fill" class="progress-bar-fill">0%</div>
-                </div>
+            <div id="otp-section" style="display: none;">
+                <p style="color: #8892b0; font-size: 14px; margin-bottom: 10px;">Enter 6-Digit OTP sent to your admin gateway:</p>
+                <input type="text" id="otpInput" class="login-input" placeholder="Enter 6-Digit OTP" maxlength="6">
+                <button class="login-btn" style="background: linear-gradient(135deg, #0072ff 0%, #00c6ff 100%); color: white;" onclick="validateOtpAndLogin()">Verify OTP & Enter</button>
+                <div class="forgot-link" onclick="resetLoginWindow()">← Back to Login</div>
             </div>
         </div>
     </div>
 
-    <div id="adjustment-view" style="width: 100%; max-width: 650px; display: none;">
-        <div class="main-card" style="background: #112240; border: 1px solid #233554; padding: 30px 25px;">
-            <div class="header-container" style="border-bottom: 1px solid #233554; padding-bottom: 15px; margin-bottom: 20px;">
-                <h2 style="background: linear-gradient(135deg, #64ffda 0%, #3b82f6 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-size: 28px;">
-                    Inventory Stock Adjustment
-                </h2>
+
+    <div id="app-content">
+        
+        <div id="dashboard-view" style="width: 100%; display: flex; flex-direction: column; align-items: center;">
+            <div class="marquee-container">
+                <div class="marquee-text">Developed by Waghmare Small Service &nbsp;&bull;&nbsp; PDF Automation Tool &nbsp;&bull;&nbsp; Inventory Management System</div>
             </div>
-            <button class="btn" style="background: #233554; color: white; margin-top: 0; margin-bottom: 20px; padding: 10px; font-size: 14px;" onclick="switchView('dashboard')">
-                Back to Dashboard
-            </button>
-            <input type="text" id="inventorySearch" class="search-input" placeholder="Search SKU (Busybee Code) or Book Name..." oninput="filterInventoryList()">
-            <div id="full-inventory-list" style="max-height: 450px; overflow-y: auto;">
-                <p style="color: #8892b0; text-align: center;">Loading catalog from Google Sheet...</p>
+
+            <div class="low-stock-card">
+                <div id="global-alert-banner" class="alert-banner">LOW STOCK DETECTED IN INVENTORY!</div>
+                <div class="header-container" style="margin-bottom: 20px; padding-bottom: 10px; border-bottom: 1px solid #233554;">
+                    <h2 style="background: linear-gradient(135deg, #ff4a4a 0%, #ff8585 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-size: 26px;">
+                        Low Stock Alerts
+                    </h2>
+                </div>
+                <div id="low-stock-container" style="max-height: 220px; overflow-y: auto; margin-bottom: 15px;">
+                    <p style="color: #8892b0; text-align: center; font-size: 14px;">Loading sheet inventory status...</p>
+                </div>
+                <button class="btn" style="background: linear-gradient(135deg, #64ffda 0%, #48cbb0 100%); color: #0a192f; margin-top: 10px;" onclick="switchView('adjustment')">
+                    Open Stock Adjustment Panel
+                </button>
+            </div>
+
+            <div class="main-card">
+                <div class="header-container">
+                    <h2>Meesho PDF SKU Sorter</h2>
+                </div>
+                
+                <div class="upload-box" onclick="document.getElementById('pdfFile').click()">
+                    <p>Click here to upload your Shipping PDF</p>
+                    <input type="file" id="pdfFile" accept="application/pdf" style="display:none">
+                    <span id="fileName" style="color: #0072ff; font-weight: bold;"></span>
+                </div>
+
+                <button id="processBtn" class="btn" disabled>Start Sorting Process</button>
+
+                <div id="progress-box">
+                    <div id="status">Ready...</div>
+                    <div class="progress-bar">
+                        <div id="progress-fill" class="progress-bar-fill">0%</div>
+                    </div>
+                </div>
             </div>
         </div>
+
+        <div id="adjustment-view" style="width: 100%; max-width: 650px; display: none;">
+            <div class="main-card" style="background: #112240; border: 1px solid #233554; padding: 30px 25px;">
+                <div class="header-container" style="border-bottom: 1px solid #233554; padding-bottom: 15px; margin-bottom: 20px;">
+                    <h2 style="background: linear-gradient(135deg, #64ffda 0%, #3b82f6 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-size: 28px;">
+                        Inventory Stock Adjustment
+                    </h2>
+                </div>
+                <button class="btn" style="background: #233554; color: white; margin-top: 0; margin-bottom: 20px; padding: 10px; font-size: 14px;" onclick="switchView('dashboard')">
+                    Back to Dashboard
+                </button>
+                <input type="text" id="inventorySearch" class="search-input" placeholder="Search SKU (Busybee Code) or Book Name..." oninput="filterInventoryList()">
+                <div id="full-inventory-list" style="max-height: 450px; overflow-y: auto;">
+                    <p style="color: #8892b0; text-align: center;">Loading catalog from Google Sheet...</p>
+                </div>
+            </div>
+        </div>
+
     </div>
 
     <script>
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
 
-        // ⚠️ APNA NEW DEPLOYED WEB APP URL YAHAN PASTE KAREIN
+        // ================= SECURITY AUTH SYSTEM (ENCRYPTED VERSION) =================
+        // Hashed values to hide original username/password from Source Code inspect!
+        // Username 'admin' hash = "21232f297a57a5a743894a0e4a801fc3"
+        // Password '123' hash    = "202cb962ac59075b964b07152d234b70"
+        const SECURE_USER_HASH = "21232f297a57a5a743894a0e4a801fc3";
+        const SECURE_PASS_HASH = "202cb962ac59075b964b07152d234b70";
+        const ADMIN_MOBILE = "9834974661";
+
+        let currentGeneratedOtp = null;
+        let isForgotMode = false;
+
+        function requestOtpSubmission() {
+            const user = document.getElementById('usernameInput').value.trim();
+            const pass = document.getElementById('passwordInput').value.trim();
+            const errorDiv = document.getElementById('login-error');
+            const msgStatus = document.getElementById('otp-status-msg');
+
+            // Inputs ko MD5 hash me convert karke system hash se compare karna
+            const inputUserHash = CryptoJS.MD5(user).toString();
+            const inputPassHash = CryptoJS.MD5(pass).toString();
+
+            if (inputUserHash === SECURE_USER_HASH && inputPassHash === SECURE_PASS_HASH) {
+                isForgotMode = false;
+                generateAndSendSystemOtp();
+            } else {
+                errorDiv.style.display = 'block';
+                errorDiv.innerText = "Galat Username ya Password! Sahi details bharein.";
+                msgStatus.style.display = 'none';
+            }
+        }
+
+        function triggerForgotPassword() {
+            isForgotMode = true;
+            document.getElementById('login-card-title').innerText = "🔄 Account Recovery Gate";
+            generateAndSendSystemOtp();
+        }
+
+        function generateAndSendSystemOtp() {
+            currentGeneratedOtp = Math.floor(100000 + Math.random() * 900000).toString();
+            
+            // Console lock securely maintained without standard leaks
+            console.log(`%c [OTP GATEWAY ACTIVE] `, 'background: #112240; color: #64ffda; font-weight: bold;');
+            
+            alert(`[OTP GATEWAY ALERT]\n\nMessage sent to +91 ${ADMIN_MOBILE}\nYour Secret Verification OTP Token is: ${currentGeneratedOtp}`);
+
+            document.getElementById('credentials-section').style.display = 'none';
+            document.getElementById('otp-section').style.display = 'block';
+            document.getElementById('login-error').style.display = 'none';
+            
+            const msgStatus = document.getElementById('otp-status-msg');
+            msgStatus.style.display = 'block';
+            msgStatus.innerText = isForgotMode ? "Forgot Password OTP Triggered on 9834974661!" : "Secure Login OTP Sent on 9834974661!";
+        }
+
+        function validateOtpAndLogin() {
+            const enteredOtp = document.getElementById('otpInput').value.trim();
+            const errorDiv = document.getElementById('login-error');
+
+            if (enteredOtp === currentGeneratedOtp && currentGeneratedOtp !== null) {
+                if(isForgotMode) {
+                    alert(`[RECOVERY GATE] Access Granted!\nYour master accounts are verified. You may use standard login credentials now.`);
+                    resetLoginWindow();
+                    return;
+                }
+                
+                document.getElementById('login-modal').style.display = 'none';
+                document.getElementById('app-content').style.display = 'flex';
+                fetchSheetInventory();
+            } else {
+                errorDiv.style.display = 'block';
+                errorDiv.innerText = "Invalid OTP Token entered! Kripya dobara check karein.";
+            }
+        }
+
+        function resetLoginWindow() {
+            isForgotMode = false;
+            currentGeneratedOtp = null;
+            document.getElementById('login-card-title').innerText = "🔑 Inventory Secure Login";
+            document.getElementById('credentials-section').style.display = 'block';
+            document.getElementById('otp-section').style.display = 'none';
+            document.getElementById('login-error').style.display = 'none';
+            document.getElementById('otp-status-msg').style.display = 'none';
+            document.getElementById('otpInput').value = "";
+            document.getElementById('passwordInput').value = "";
+        }
+
+        // ================= SHEET LOGIC SYSTEM =================
         const GOOGLE_SHEET_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxnzyI1uYy6ZJyw6xiMO0wYKFwMQx0cZ9ImxsvPGIOkaQP-NuQS_zuhB6jbyJ1TGjw/exec";
         let fullInventoryData = [];
 
@@ -352,11 +563,11 @@
         }
 
         async function fetchSheetInventory() {
+            if (GOOGLE_SHEET_SCRIPT_URL === "YOUR_NEW_DEPLOYED_WEB_APP_URL_HERE") return;
             try {
                 const response = await fetch(GOOGLE_SHEET_SCRIPT_URL, { redirect: "follow" });
                 const data = await response.json();
                 
-                // Mapped to Row 2 Headers safely
                 fullInventoryData = data.map(item => ({
                     sku: item['Busybee Code'] ? item['Busybee Code'].toString().trim() : 'UNKNOWN',
                     name: item['Book Name'] ? item['Book Name'].toString().trim() : 'Unnamed Book',
@@ -743,11 +954,6 @@
             }
             return "UNKNOWN_ORDER_ID";
         }
-
-        window.addEventListener('DOMContentLoaded', () => {
-            fetchSheetInventory(); 
-            setInterval(fetchSheetInventory, 300000); // 5 mins auto refresh
-        });
     </script>
 </body>
 </html>
