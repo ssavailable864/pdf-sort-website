@@ -8,6 +8,83 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #0a192f; margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; min-height: 100vh; user-select: none; }
+
+        /* Login Modal Styles */
+        #login-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #0a192f; display: flex; align-items: center; justify-content: center; z-index: 9999; }
+        .login-card { background: #112240; padding: 30px; border-radius: 15px; width: 320px; text-align: center; border: 1px solid #233554; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        .login-input { width: 100%; padding: 12px; margin-bottom: 15px; border-radius: 5px; border: 1px solid #233554; background: #0a192f; color: white; box-sizing: border-box; }
+        .login-btn { background: #64ffda; color: #0a192f; padding: 12px; width: 100%; border: none; cursor: pointer; border-radius: 5px; font-weight: bold; }
+        
+        /* Main App Container (Hidden initially) */
+        #app-container { display: none; width: 100%; max-width: 800px; }
+        
+        /* Baaki tumhara original styling yahan rahega... */
+    </style>
+</head>
+<body>
+
+    <div id="login-modal">
+        <div class="login-card">
+            <h3 style="color: #64ffda;">Warehouse Secure Access</h3>
+            <div id="auth-step-1">
+                <input type="text" id="user" class="login-input" placeholder="Username">
+                <input type="password" id="pass" class="login-input" placeholder="Password">
+                <button class="login-btn" onclick="sendOtp()">Get Telegram OTP</button>
+            </div>
+            <div id="auth-step-2" style="display: none;">
+                <input type="text" id="otp" class="login-input" placeholder="Enter OTP">
+                <button class="login-btn" onclick="verifyOtp()">Login Now</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="app-container">
+        <h1>Welcome to Inventory Dashboard</h1>
+        </div>
+
+    <script>
+        const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxQoIrxW6dQgfmUvdZ2LUQUORH_g06yLbNzqGoHYpqfcaxhY_efJj2CrXoUy4M2hz0JAA/exec";
+
+        // Telegram OTP Logic
+        async function sendOtp() {
+            const user = document.getElementById('user').value;
+            const pass = document.getElementById('pass').value;
+            
+            // Ye server pe request bhejega aur Telegram pe OTP aayega
+            await fetch(WEB_APP_URL, {
+                method: "POST", mode: "no-cors",
+                body: JSON.stringify({ action: "sendOtp", user, pass })
+            });
+            
+            document.getElementById('auth-step-1').style.display = 'none';
+            document.getElementById('auth-step-2').style.display = 'block';
+            alert("OTP Telegram par bhej diya gaya hai!");
+        }
+
+        function verifyOtp() {
+            const enteredOtp = document.getElementById('otp').value;
+            // Yahan validation logic (server check ya static check)
+            if(enteredOtp) {
+                document.getElementById('login-modal').style.display = 'none';
+                document.getElementById('app-container').style.display = 'block';
+            } else {
+                alert("Galat OTP!");
+            }
+        }
+
+        // --- YAHAN TUMHARA PURANA SORTING AUR INVENTORY SCRIPT RAKHO ---
+    </script>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Meesho PDF SKU Sorter & Inventory Control</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
         body { 
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
             background-color: #0a192f; 
@@ -564,7 +641,7 @@
             } else {
                 document.getElementById('adjustment-view').style.display = 'none';
                 document.getElementById('dashboard-view').style.display = 'flex';
-                fetchSheetInventory();
+                fetchSheetInventory();https://script.google.com/macros/s/AKfycbxQoIrxW6dQgfmUvdZ2LUQUORH_g06yLbNzqGoHYpqfcaxhY_efJj2CrXoUy4M2hz0JAA/exec
             }
         }
 
