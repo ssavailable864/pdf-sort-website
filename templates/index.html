@@ -172,7 +172,7 @@
             padding-bottom: 20px;
         }
 
-        h2 { 
+        <h2> { 
             background: linear-gradient(135deg, #0072ff 0%, #00c6ff 100%); 
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
@@ -465,21 +465,19 @@
     <script>
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
 
-        // ================= BLOCKING DEV TOOLS (ANTI-INSPECT ELEMENT) =================
-        // Yeh code koi bhi tarike se Chrome Console kholne nahi dega
-        document.addEventListener('contextmenu', event => event.preventDefault()); // Right Click Block
+        // ================= ANTI-INSPECT SOURCE CODE PROTECTION =================
+        document.addEventListener('contextmenu', event => event.preventDefault()); 
 
         document.onkeydown = function(e) {
-            if (e.keyCode == 123) { return false; } // F12 Key Block
-            if (e.ctrlKey && e.shiftKey && e.keyCode == 'I'.charCodeAt(0)) { return false; } // Ctrl+Shift+I Block
-            if (e.ctrlKey && e.shiftKey && e.keyCode == 'C'.charCodeAt(0)) { return false; } // Ctrl+Shift+C Block
-            if (e.ctrlKey && e.shiftKey && e.keyCode == 'J'.charCodeAt(0)) { return false; } // Ctrl+Shift+J Block
-            if (e.ctrlKey && e.keyCode == 'U'.charCodeAt(0)) { return false; } // Ctrl+U (View Source Code) Block
+            if (e.keyCode == 123) { return false; } 
+            if (e.ctrlKey && e.shiftKey && e.keyCode == 'I'.charCodeAt(0)) { return false; } 
+            if (e.ctrlKey && e.shiftKey && e.keyCode == 'C'.charCodeAt(0)) { return false; } 
+            if (e.ctrlKey && e.shiftKey && e.keyCode == 'J'.charCodeAt(0)) { return false; } 
+            if (e.ctrlKey && e.keyCode == 'U'.charCodeAt(0)) { return false; } 
         }
 
-        // ================= ENCRYPTED LOCK GATEWAY (HACK-PROOF) =================
-        // Pure code mein kahin bhi "admin" ya "143143143" plain text mein nahi likha hai!
-        // Isliye source code dekhne par bhi koi credentials nahi nikal sakta.
+        // ================= VAULT CRYPTO KEYS SYSTEM =================
+        // Username 'admin' & Password '143143143' are hidden securely inside MD5 vaults.
         const VAULT_U = "21232f297a57a5a743894a0e4a801fc3"; 
         const VAULT_P = "390e1591c0ff4d01b131804fbf19cfbe"; 
         const ADMIN_MOBILE = "9834974661";
@@ -493,7 +491,6 @@
             const errorDiv = document.getElementById('login-error');
             const msgStatus = document.getElementById('otp-status-msg');
 
-            // Inputs ko secure cryptographic MD5 mein convert karke hidden vault se verify kiya jata hai
             const checkU = CryptoJS.MD5(user).toString();
             const checkP = CryptoJS.MD5(pass).toString();
 
@@ -560,7 +557,8 @@
             document.getElementById('passwordInput').value = "";
         }
 
-        // ================= SHEET LOGIC SYSTEM =================
+        // ================= LIVE GOOGLE SHEET DATA FETCHING =================
+        // Apni spreadsheet columns mapping ke hisab se setup Kiya hai (Busybee Code, Book Name, Closing Stock)
         const GOOGLE_SHEET_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxnzyI1uYy6ZJyw6xiMO0wYKFwMQx0cZ9ImxsvPGIOkaQP-NuQS_zuhB6jbyJ1TGjw/exec";
         let fullInventoryData = [];
 
