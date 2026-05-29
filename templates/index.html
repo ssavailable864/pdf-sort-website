@@ -925,9 +925,9 @@
                         const separatorPage = outPdfDoc.addPage([595, 842]); 
                         
                         separatorPage.drawText(`SKU: ${sku}`, { x: 80, y: 550, size: 24, color: PDFLib.rgb(0, 0, 0) });
-                        separatorPage.drawText(`LABEL INDIVIDUAL QTY: ${qty}`, { x: 80, y: 490, size: 20, color: PDFLib.rgb(0.85, 0, 0) });
-                        separatorPage.drawText(`TOTAL LABELS IN THIS BATCH: ${labelCount}`, { x: 80, y: 430, size: 16, color: PDFLib.rgb(0.2, 0.2, 0.2) });
-                        separatorPage.drawText(`TOTAL THIS BATCH QTY: ${pieceTotal}`, { x: 80, y: 380, size: 16, color: PDFLib.rgb(0, 0.4, 0.8) });
+                        separatorPage.drawText(`iN SAB LABEL MEIN JAAYEGI: ${qty}`, { x: 80, y: 490, size: 20, color: PDFLib.rgb(0.85, 0, 0) });
+                        separatorPage.drawText(`TOTAL LABELS : ${labelCount}`, { x: 80, y: 430, size: 16, color: PDFLib.rgb(0.2, 0.2, 0.2) });
+                        separatorPage.drawText(`TOTAL IN LABELS KI QTY: ${pieceTotal}`, { x: 80, y: 380, size: 16, color: PDFLib.rgb(0, 0.4, 0.8) });
                         
                         separatorPage.drawText("--------------------------------------------------------------------------------", { x: 80, y: 340, size: 12, color: PDFLib.rgb(0.7, 0.7, 0.7) });
 
