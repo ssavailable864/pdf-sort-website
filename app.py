@@ -17,6 +17,10 @@ os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 def home():
     return render_template("index.html")
 
+@app.route('/wms')
+def wms_panel():
+    return render_template('wms.html') 
+
 @app.route("/upload", methods=["POST"])
 def upload():
     if "pdf" not in request.files or "mapping" not in request.form:
