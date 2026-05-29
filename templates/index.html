@@ -1,3 +1,6 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Meesho PDF SKU Sorter & Inventory Control</title>
@@ -373,29 +376,34 @@
 
     <div id="login-modal">
         <div class="login-card">
-            <h3 id="login-card-title">🔑 Inventory Secure Login</h3>
-            <div id="login-error">Galt Data! Kripya sahi details bharein.</div>
-            <div id="otp-status-msg">OTP Sent successfully to 9834974661!</div>
+            <h3 id="login-card-title">🔑 Live Telegram Security Gate</h3>
+            <div id="login-error">Loading Secure Systems...</div>
+            <div id="otp-status-msg">OTP Sent successfully to Telegram Admin Bot!</div>
             
             <div id="credentials-section">
                 <input type="text" id="usernameInput" class="login-input" placeholder="Username">
                 <input type="password" id="passwordInput" class="login-input" placeholder="Password">
-                <button class="login-btn" onclick="requestOtpSubmission()">Verify & Send OTP</button>
-                <div class="forgot-link" onclick="triggerForgotPassword()">Forgot Password?</div>
+                <button class="login-btn" onclick="verifyDatabaseCredentials()">Verify & Send Telegram OTP</button>
+                <div class="forgot-link" onclick="triggerForgotPasswordRecovery()">Forgot / Change Password?</div>
             </div>
 
             <div id="otp-section" style="display: none;">
-                <p style="color: #8892b0; font-size: 14px; margin-bottom: 10px;">Enter 6-Digit OTP sent to your admin gateway:</p>
-                <input type="text" id="otpInput" class="login-input" placeholder="Enter 6-Digit OTP" maxlength="6">
-                <button class="login-btn" style="background: linear-gradient(135deg, #0072ff 0%, #00c6ff 100%); color: white;" onclick="validateOtpAndLogin()">Verify OTP & Enter</button>
-                <div class="forgot-link" onclick="resetLoginWindow()">← Back to Login</div>
+                <p style="color: #8892b0; font-size: 14px; margin-bottom: 10px;">Enter 6-Digit Live Telegram Bot OTP Code:</p>
+                <input type="text" id="otpInput" class="login-input" placeholder="Enter Telegram Code" maxlength="6">
+                <button class="login-btn" style="background: linear-gradient(135deg, #0072ff 0%, #00c6ff 100%); color: white;" onclick="validateTelegramOtp()">Verify Code & Grant Access</button>
+                <div class="forgot-link" onclick="resetLoginWindow()">← Cancel & Back</div>
+            </div>
+
+            <div id="recovery-section" style="display: none;">
+                <p style="color: #64ffda; font-size: 14px; margin-bottom: 15px;">✓ Telegram OTP Verified! Enter Your New Secure Password:</p>
+                <input type="password" id="newPasswordInput" class="login-input" placeholder="Enter New Password">
+                <button class="login-btn" style="background: linear-gradient(135deg, #ff4a4a 0%, #ff8585 100%); color: white;" onclick="commitNewPasswordToDatabase()">Save & Update Master Database</button>
             </div>
         </div>
     </div>
 
 
     <div id="app-content">
-        
         <div id="dashboard-view" style="width: 100%; display: flex; flex-direction: column; align-items: center;">
             <div class="marquee-container">
                 <div class="marquee-text">Developed by Waghmare Small Service &nbsp;&bull;&nbsp; PDF Automation Tool &nbsp;&bull;&nbsp; Inventory Management System</div>
@@ -420,15 +428,12 @@
                 <div class="header-container">
                     <h2>Meesho PDF SKU Sorter</h2>
                 </div>
-                
                 <div class="upload-box" onclick="document.getElementById('pdfFile').click()">
                     <p>Click here to upload your Shipping PDF</p>
                     <input type="file" id="pdfFile" accept="application/pdf" style="display:none">
                     <span id="fileName" style="color: #0072ff; font-weight: bold;"></span>
                 </div>
-
                 <button id="processBtn" class="btn" disabled>Start Sorting Process</button>
-
                 <div id="progress-box">
                     <div id="status">Ready...</div>
                     <div class="progress-bar">
@@ -454,105 +459,204 @@
                 </div>
             </div>
         </div>
-
     </div>
 
     <script>
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
 
-        // ================= ANTI-INSPECT SOURCE CODE PROTECTION =================
+        // Source Code Inspect Protections
         document.addEventListener('contextmenu', event => event.preventDefault()); 
-
         document.onkeydown = function(e) {
-            if (e.keyCode == 123) { return false; } 
-            if (e.ctrlKey && e.shiftKey && e.keyCode == 'I'.charCodeAt(0)) { return false; } 
-            if (e.ctrlKey && e.shiftKey && e.keyCode == 'C'.charCodeAt(0)) { return false; } 
-            if (e.ctrlKey && e.shiftKey && e.keyCode == 'J'.charCodeAt(0)) { return false; } 
-            if (e.ctrlKey && e.keyCode == 'U'.charCodeAt(0)) { return false; } 
+            if (e.keyCode == 123) return false;
+            if (e.ctrlKey && e.shiftKey && e.keyCode == 'I'.charCodeAt(0)) return false;
+            if (e.ctrlKey && e.shiftKey && e.keyCode == 'C'.charCodeAt(0)) return false;
+            if (e.ctrlKey && e.shiftKey && e.keyCode == 'J'.charCodeAt(0)) return false;
+            if (e.ctrlKey && e.keyCode == 'U'.charCodeAt(0)) return false;
         }
 
-        // ================= VAULT SYSTEM DIRECT CORRECTION =================
-        const MASTER_U = "admin";
-        const MASTER_P = "143143143"; 
-        const ADMIN_MOBILE = "9834974661";
+        // ================= VAULT SECURITY INTEGRATION KEYS =================
+        const TELEGRAM_BOT_TOKEN = "8758748106:AAEupBEcOtt454z1LDoVitXOEHS_EZnXoX8"; 
+        const TELEGRAM_CHAT_ID = "1481260316"; 
+        const APPS_SCRIPT_VAULT_URL = "https://script.google.com/macros/s/AKfycbwRovQWzGBCq4359doFcDsAAghc8ZDj8T0CWG2fi8kM3AZmG6nYMOAyc_KbyY_u-O58tg/exec"; 
+
+        const GOOGLE_SHEET_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxnzyI1uYy6ZJyw6xiMO0wYKFwMQx0cZ9ImxsvPGIOkaQP-NuQS_zuhB6jbyJ1TGjw/exec";
 
         let currentGeneratedOtp = null;
-        let isForgotMode = false;
+        let isRecoveryMode = false;
+        let fullInventoryData = [];
 
-        function requestOtpSubmission() {
-            const user = document.getElementById('usernameInput').value.trim();
-            const pass = document.getElementById('passwordInput').value.trim();
+        // App start triggers
+        window.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('login-error').style.display = 'none';
+        });
+
+        // Fetch Credentials from Google Sheet via Apps Script
+        async function verifyDatabaseCredentials() {
+            const userIn = document.getElementById('usernameInput').value.trim();
+            const passIn = document.getElementById('passwordInput').value.trim();
             const errorDiv = document.getElementById('login-error');
-            const msgStatus = document.getElementById('otp-status-msg');
 
-            // Direct robust check without client-side string casing bugs
-            if (user.toLowerCase() === MASTER_U && pass === MASTER_P) {
-                isForgotMode = false;
-                generateAndSendSystemOtp();
-            } else {
-                errorDiv.style.display = 'block';
-                errorDiv.innerText = "Galat Username ya Password! Sahi details bharein.";
-                msgStatus.style.display = 'none';
+            if(!userIn || !passIn) {
+                showLoginError("Kripya dono fields ko bharein!");
+                return;
+            }
+
+            showLoginLoading("Verifying Vault Credentials...");
+
+            try {
+                const response = await fetch(APPS_SCRIPT_VAULT_URL, {
+                    method: 'POST',
+                    text: 'plain',
+                    body: JSON.stringify({ action: "getCredentials" })
+                });
+                const data = await response.json();
+
+                if (data.status === "success") {
+                    if (userIn.toLowerCase() === data.user.toLowerCase() && passIn === data.pass) {
+                        isRecoveryMode = false;
+                        sendTelegramRealOtp(userIn);
+                    } else {
+                        showLoginError("Galat Username ya Password! Try again.");
+                    }
+                } else {
+                    showLoginError("Database Connection Failed!");
+                }
+            } catch (err) {
+                showLoginError("Vault Sync Error. Check Apps Script URL!");
+                console.error(err);
             }
         }
 
-        function triggerForgotPassword() {
-            isForgotMode = true;
-            document.getElementById('login-card-title').innerText = "🔄 Account Recovery Gate";
-            generateAndSendSystemOtp();
+        // Trigger Forgot Mode - Direct Telegram Check
+        async function triggerForgotPasswordRecovery() {
+            const userIn = document.getElementById('usernameInput').value.trim();
+            if(!userIn) {
+                showLoginError("Recovery ke liye pehle Username box mein apna naam likhein!");
+                return;
+            }
+            
+            showLoginLoading("Verifying account identity...");
+            try {
+                const response = await fetch(APPS_SCRIPT_VAULT_URL, {
+                    method: 'POST',
+                    body: JSON.stringify({ action: "getCredentials" })
+                });
+                const data = await response.json();
+                
+                if (data.status === "success" && userIn.toLowerCase() === data.user.toLowerCase()) {
+                    isRecoveryMode = true;
+                    document.getElementById('login-card-title').innerText = "🔄 Recovery Token Triggered";
+                    sendTelegramRealOtp(userIn);
+                } else {
+                    showLoginError("Khatra! Ye Username system mein registered nahi hai.");
+                }
+            } catch(e) {
+                showLoginError("Recovery Network Error!");
+            }
         }
 
-        function generateAndSendSystemOtp() {
+        // Real API Call to Send Telegram Message
+        async function sendTelegramRealOtp(username) {
             currentGeneratedOtp = Math.floor(100000 + Math.random() * 900000).toString();
-            console.log(`%c [OTP GATEWAY ACTIVE] `, 'background: #112240; color: #64ffda; font-weight: bold;');
             
-            alert(`[OTP GATEWAY ALERT]\n\nMessage sent to +91 ${ADMIN_MOBILE}\nYour Secret Verification OTP Token is: ${currentGeneratedOtp}`);
+            const messageText = `⚠️ [SECURITY ALERT] ⚠️\n\nWaghmare App System Access Request!\nUser Identity: ${username}\nPurpose: ${isRecoveryMode ? 'PASSWORD RECOVERY' : 'SECURE SYSTEM LOGIN'}\n\nYour Live Secure Verification OTP is: ${currentGeneratedOtp}\n\nValid for 5 minutes only. Do not share!`;
+            
+            const telegramUrl = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`;
 
-            document.getElementById('credentials-section').style.display = 'none';
-            document.getElementById('otp-section').style.display = 'block';
-            document.getElementById('login-error').style.display = 'none';
-            
-            const msgStatus = document.getElementById('otp-status-msg');
-            msgStatus.style.display = 'block';
-            msgStatus.innerText = isForgotMode ? "Forgot Password OTP Triggered on 9834974661!" : "Secure Login OTP Sent on 9834974661!";
+            try {
+                await fetch(telegramUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ chat_id: TELEGRAM_CHAT_ID, text: messageText })
+                });
+
+                document.getElementById('credentials-section').style.display = 'none';
+                document.getElementById('otp-section').style.display = 'block';
+                document.getElementById('login-error').style.display = 'none';
+                
+                const msgStatus = document.getElementById('otp-status-msg');
+                msgStatus.style.display = 'block';
+                msgStatus.innerText = "Real Security OTP successfully pushed to your Telegram!";
+            } catch (err) {
+                showLoginError("Telegram Gateway Error! Check Token/ChatID configuration.");
+                console.error(err);
+            }
         }
 
-        function validateOtpAndLogin() {
+        // OTP Match Checker
+        function validateTelegramOtp() {
             const enteredOtp = document.getElementById('otpInput').value.trim();
-            const errorDiv = document.getElementById('login-error');
 
             if (enteredOtp === currentGeneratedOtp && currentGeneratedOtp !== null) {
-                if(isForgotMode) {
-                    alert(`[RECOVERY GATE] Access Granted!\nYour master accounts are verified. You may use standard login credentials now.`);
-                    resetLoginWindow();
-                    return;
+                if (isRecoveryMode) {
+                    document.getElementById('otp-section').style.display = 'none';
+                    document.getElementById('recovery-section').style.display = 'block';
+                    document.getElementById('otp-status-msg').style.display = 'none';
+                } else {
+                    document.getElementById('login-modal').style.display = 'none';
+                    document.getElementById('app-content').style.display = 'flex';
+                    fetchSheetInventory();
                 }
-                
-                document.getElementById('login-modal').style.display = 'none';
-                document.getElementById('app-content').style.display = 'flex';
-                fetchSheetInventory();
             } else {
-                errorDiv.style.display = 'block';
-                errorDiv.innerText = "Invalid OTP Token entered! Kripya dobara check karein.";
+                showLoginError("❌ Invalid Telegram Code Token! Try again.");
             }
+        }
+
+        // Save new password back to Google Sheet Database
+        async function commitNewPasswordToDatabase() {
+            const newPass = document.getElementById('newPasswordInput').value.trim();
+            if(!newPass || newPass.length < 4) {
+                alert("Password kam se kam 4 characters ka hona chahiye!");
+                return;
+            }
+
+            try {
+                const response = await fetch(APPS_SCRIPT_VAULT_URL, {
+                    method: 'POST',
+                    body: JSON.stringify({ action: "updatePassword", newPassword: newPass })
+                });
+                const data = await response.json();
+                
+                if(data.status === "success") {
+                    alert("🥳 Makkhan! Naya Password Google Sheet par safe lock ho chuka hai. Ab naye password se login karein.");
+                    resetLoginWindow();
+                } else {
+                    alert("Error saving password to cloud database.");
+                }
+            } catch (err) {
+                alert("Database Update Crash!");
+            }
+        }
+
+        function showLoginError(msg) {
+            const errorDiv = document.getElementById('login-error');
+            errorDiv.style.display = 'block';
+            errorDiv.style.color = '#ff4a4a';
+            errorDiv.innerText = msg;
+        }
+
+        function showLoginLoading(msg) {
+            const errorDiv = document.getElementById('login-error');
+            errorDiv.style.display = 'block';
+            errorDiv.style.color = '#64ffda';
+            errorDiv.innerText = msg;
         }
 
         function resetLoginWindow() {
-            isForgotMode = false;
+            isRecoveryMode = false;
             currentGeneratedOtp = null;
-            document.getElementById('login-card-title').innerText = "🔑 Inventory Secure Login";
+            document.getElementById('login-card-title').innerText = "🔑 Live Telegram Security Gate";
             document.getElementById('credentials-section').style.display = 'block';
             document.getElementById('otp-section').style.display = 'none';
+            document.getElementById('recovery-section').style.display = 'none';
             document.getElementById('login-error').style.display = 'none';
             document.getElementById('otp-status-msg').style.display = 'none';
             document.getElementById('otpInput').value = "";
             document.getElementById('passwordInput').value = "";
+            document.getElementById('newPasswordInput').value = "";
         }
 
         // ================= LIVE GOOGLE SHEET DATA FETCHING =================
-        const GOOGLE_SHEET_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxnzyI1uYy6ZJyw6xiMO0wYKFwMQx0cZ9ImxsvPGIOkaQP-NuQS_zuhB6jbyJ1TGjw/exec";
-        let fullInventoryData = [];
-
         function switchView(viewName) {
             if(viewName === 'adjustment') {
                 document.getElementById('dashboard-view').style.display = 'none';
