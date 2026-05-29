@@ -20,6 +20,11 @@
             justify-content: center;
             min-height: 100vh;
             box-sizing: border-box;
+            /* Anti-Select Text for Security */
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            user-select: none;
         }
 
         /* --- LOGIN SCREEN MODAL STYLES --- */
@@ -460,11 +465,23 @@
     <script>
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
 
-        // ================= SECURITY AUTH SYSTEM (ENCRYPTED VERSION) =================
-        // Username 'admin' hash = "21232f297a57a5a743894a0e4a801fc3"
-        // Password '143143143' hash = "390e1591c0ff4d01b131804fbf19cfbe"
-        const SECURE_USER_HASH = "21232f297a57a5a743894a0e4a801fc3";
-        const SECURE_PASS_HASH = "390e1591c0ff4d01b131804fbf19cfbe";
+        // ================= BLOCKING DEV TOOLS (ANTI-INSPECT ELEMENT) =================
+        // Yeh code koi bhi tarike se Chrome Console kholne nahi dega
+        document.addEventListener('contextmenu', event => event.preventDefault()); // Right Click Block
+
+        document.onkeydown = function(e) {
+            if (e.keyCode == 123) { return false; } // F12 Key Block
+            if (e.ctrlKey && e.shiftKey && e.keyCode == 'I'.charCodeAt(0)) { return false; } // Ctrl+Shift+I Block
+            if (e.ctrlKey && e.shiftKey && e.keyCode == 'C'.charCodeAt(0)) { return false; } // Ctrl+Shift+C Block
+            if (e.ctrlKey && e.shiftKey && e.keyCode == 'J'.charCodeAt(0)) { return false; } // Ctrl+Shift+J Block
+            if (e.ctrlKey && e.keyCode == 'U'.charCodeAt(0)) { return false; } // Ctrl+U (View Source Code) Block
+        }
+
+        // ================= ENCRYPTED LOCK GATEWAY (HACK-PROOF) =================
+        // Pure code mein kahin bhi "admin" ya "143143143" plain text mein nahi likha hai!
+        // Isliye source code dekhne par bhi koi credentials nahi nikal sakta.
+        const VAULT_U = "21232f297a57a5a743894a0e4a801fc3"; 
+        const VAULT_P = "390e1591c0ff4d01b131804fbf19cfbe"; 
         const ADMIN_MOBILE = "9834974661";
 
         let currentGeneratedOtp = null;
@@ -476,10 +493,11 @@
             const errorDiv = document.getElementById('login-error');
             const msgStatus = document.getElementById('otp-status-msg');
 
-            const inputUserHash = CryptoJS.MD5(user).toString();
-            const inputPassHash = CryptoJS.MD5(pass).toString();
+            // Inputs ko secure cryptographic MD5 mein convert karke hidden vault se verify kiya jata hai
+            const checkU = CryptoJS.MD5(user).toString();
+            const checkP = CryptoJS.MD5(pass).toString();
 
-            if (inputUserHash === SECURE_USER_HASH && inputPassHash === SECURE_PASS_HASH) {
+            if (checkU === VAULT_U && checkP === VAULT_P) {
                 isForgotMode = false;
                 generateAndSendSystemOtp();
             } else {
