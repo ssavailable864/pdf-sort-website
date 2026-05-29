@@ -3,97 +3,6 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Warehouse Pro - Unified System</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-    <style>
-        /* CSS Combined */
-        body { font-family: sans-serif; background-color: #0a192f; color: white; margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; min-height: 100vh; }
-        #login-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #0a192f; display: flex; align-items: center; justify-content: center; z-index: 9999; }
-        .login-card { background: #112240; padding: 40px; border-radius: 20px; max-width: 400px; width: 100%; text-align: center; border: 1px solid #233554; }
-        .login-input { width: 100%; padding: 12px; margin-bottom: 15px; background: #0a192f; border: 1px solid #64ffda; border-radius: 8px; color: white; box-sizing: border-box; }
-        .login-btn { background: #64ffda; color: #0a192f; padding: 12px; width: 100%; border: none; cursor: pointer; border-radius: 8px; font-weight: bold; }
-        #app-content { display: none; width: 100%; max-width: 650px; }
-        .main-card { background: #fff; color: #0a192f; padding: 30px; border-radius: 20px; margin-top: 20px; }
-        .upload-box { border: 2px dashed #0072ff; padding: 30px; text-align: center; cursor: pointer; margin: 20px 0; }
-    </style>
-</head>
-<body>
-
-    <div id="login-modal">
-        <div class="login-card">
-            <h3>🔑 Secure Access</h3>
-            <div id="credentials-section">
-                <input type="text" id="usernameInput" class="login-input" placeholder="Username">
-                <input type="password" id="passwordInput" class="login-input" placeholder="Password">
-                <button class="login-btn" onclick="verifyLogin()">Verify & Send OTP</button>
-            </div>
-            <div id="otp-section" style="display: none;">
-                <input type="text" id="otpInput" class="login-input" placeholder="Enter 6-Digit OTP">
-                <button class="login-btn" onclick="finalLogin()">Submit OTP</button>
-            </div>
-        </div>
-    </div>
-
-    <div id="app-content">
-        <div class="main-card">
-            <h2>Meesho SKU Sorter</h2>
-            <div class="upload-box" onclick="document.getElementById('pdfFile').click()">
-                Click to upload PDF
-                <input type="file" id="pdfFile" accept="application/pdf" style="display:none">
-            </div>
-            <button id="processBtn" class="login-btn" style="background:#0072ff; color:white;" disabled>Start Sorting</button>
-            <div id="status" style="margin-top:15px; font-weight:bold;"></div>
-        </div>
-        
-        <div class="main-card">
-            <h3>Inventory Management</h3>
-            <button onclick="window.location.href='YOUR_SHEET_URL'">Check Inventory</button>
-        </div>
-    </div>
-
-    <script>
-        const webAppUrl = "PASTE_YOUR_WEB_APP_URL_HERE"; 
-        
-        // 1. LOGIN LOGIC
-        async function verifyLogin() {
-            const user = document.getElementById('usernameInput').value;
-            const pass = document.getElementById('passwordInput').value;
-            await fetch(webAppUrl, {
-                method: "POST",
-                mode: "no-cors",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ action: "login", user: user, pass: pass })
-            });
-            alert("OTP Telegram par bhej diya gaya hai!");
-            document.getElementById('credentials-section').style.display = 'none';
-            document.getElementById('otp-section').style.display = 'block';
-        }
-
-        function finalLogin() {
-            document.getElementById('login-modal').style.display = 'none';
-            document.getElementById('app-content').style.display = 'block';
-        }
-
-        // 2. PDF SORTING LOGIC (Paste your full sorting code here)
-        document.getElementById('pdfFile').addEventListener('change', (e) => {
-            if(e.target.files[0]) document.getElementById('processBtn').disabled = false;
-        });
-
-        document.getElementById('processBtn').addEventListener('click', async () => {
-            const file = document.getElementById('pdfFile').files[0];
-            // Yahan wahi purana sorting aur excel generate karne wala code paste kardo
-            alert("Sorting process initializing...");
-        });
-    </script>
-</body>
-</html>
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Meesho PDF SKU Sorter & Inventory Control</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
@@ -1051,6 +960,97 @@
             }
             return "UNKNOWN_ORDER_ID";
         }
+    </script>
+</body>
+</html>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Warehouse Pro - Unified System</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        /* CSS Combined */
+        body { font-family: sans-serif; background-color: #0a192f; color: white; margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; min-height: 100vh; }
+        #login-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #0a192f; display: flex; align-items: center; justify-content: center; z-index: 9999; }
+        .login-card { background: #112240; padding: 40px; border-radius: 20px; max-width: 400px; width: 100%; text-align: center; border: 1px solid #233554; }
+        .login-input { width: 100%; padding: 12px; margin-bottom: 15px; background: #0a192f; border: 1px solid #64ffda; border-radius: 8px; color: white; box-sizing: border-box; }
+        .login-btn { background: #64ffda; color: #0a192f; padding: 12px; width: 100%; border: none; cursor: pointer; border-radius: 8px; font-weight: bold; }
+        #app-content { display: none; width: 100%; max-width: 650px; }
+        .main-card { background: #fff; color: #0a192f; padding: 30px; border-radius: 20px; margin-top: 20px; }
+        .upload-box { border: 2px dashed #0072ff; padding: 30px; text-align: center; cursor: pointer; margin: 20px 0; }
+    </style>
+</head>
+<body>
+
+    <div id="login-modal">
+        <div class="login-card">
+            <h3>🔑 Secure Access</h3>
+            <div id="credentials-section">
+                <input type="text" id="usernameInput" class="login-input" placeholder="Username">
+                <input type="password" id="passwordInput" class="login-input" placeholder="Password">
+                <button class="login-btn" onclick="verifyLogin()">Verify & Send OTP</button>
+            </div>
+            <div id="otp-section" style="display: none;">
+                <input type="text" id="otpInput" class="login-input" placeholder="Enter 6-Digit OTP">
+                <button class="login-btn" onclick="finalLogin()">Submit OTP</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="app-content">
+        <div class="main-card">
+            <h2>Meesho SKU Sorter</h2>
+            <div class="upload-box" onclick="document.getElementById('pdfFile').click()">
+                Click to upload PDF
+                <input type="file" id="pdfFile" accept="application/pdf" style="display:none">
+            </div>
+            <button id="processBtn" class="login-btn" style="background:#0072ff; color:white;" disabled>Start Sorting</button>
+            <div id="status" style="margin-top:15px; font-weight:bold;"></div>
+        </div>
+        
+        <div class="main-card">
+            <h3>Inventory Management</h3>
+            <button onclick="window.location.href='YOUR_SHEET_URL'">Check Inventory</button>
+        </div>
+    </div>
+
+    <script>
+        const webAppUrl = "https://script.google.com/macros/s/AKfycbzyyS73gh-OPVJ5qwev1ITGXN184t_4500bTh_py5BNXtBaNHo8RNCU8QrCEvhoDoMc3g/execE"; 
+        
+        // 1. LOGIN LOGIC
+        async function verifyLogin() {
+            const user = document.getElementById('usernameInput').value;
+            const pass = document.getElementById('passwordInput').value;
+            await fetch(webAppUrl, {
+                method: "POST",
+                mode: "no-cors",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ action: "login", user: user, pass: pass })
+            });
+            alert("OTP Telegram par bhej diya gaya hai!");
+            document.getElementById('credentials-section').style.display = 'none';
+            document.getElementById('otp-section').style.display = 'block';
+        }
+
+        function finalLogin() {
+            document.getElementById('login-modal').style.display = 'none';
+            document.getElementById('app-content').style.display = 'block';
+        }
+
+        // 2. PDF SORTING LOGIC (Paste your full sorting code here)
+        document.getElementById('pdfFile').addEventListener('change', (e) => {
+            if(e.target.files[0]) document.getElementById('processBtn').disabled = false;
+        });
+
+        document.getElementById('processBtn').addEventListener('click', async () => {
+            const file = document.getElementById('pdfFile').files[0];
+            // Yahan wahi purana sorting aur excel generate karne wala code paste kardo
+            alert("Sorting process initializing...");
+        });
     </script>
 </body>
 </html>
