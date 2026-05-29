@@ -461,11 +461,10 @@
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
 
         // ================= SECURITY AUTH SYSTEM (ENCRYPTED VERSION) =================
-        // Hashed values to hide original username/password from Source Code inspect!
         // Username 'admin' hash = "21232f297a57a5a743894a0e4a801fc3"
-        // Password '123' hash    = "202cb962ac59075b964b07152d234b70"
+        // Password '143143143' hash = "390e1591c0ff4d01b131804fbf19cfbe"
         const SECURE_USER_HASH = "21232f297a57a5a743894a0e4a801fc3";
-        const SECURE_PASS_HASH = "202cb962ac59075b964b07152d234b70";
+        const SECURE_PASS_HASH = "390e1591c0ff4d01b131804fbf19cfbe";
         const ADMIN_MOBILE = "9834974661";
 
         let currentGeneratedOtp = null;
@@ -477,7 +476,6 @@
             const errorDiv = document.getElementById('login-error');
             const msgStatus = document.getElementById('otp-status-msg');
 
-            // Inputs ko MD5 hash me convert karke system hash se compare karna
             const inputUserHash = CryptoJS.MD5(user).toString();
             const inputPassHash = CryptoJS.MD5(pass).toString();
 
@@ -499,8 +497,6 @@
 
         function generateAndSendSystemOtp() {
             currentGeneratedOtp = Math.floor(100000 + Math.random() * 900000).toString();
-            
-            // Console lock securely maintained without standard leaks
             console.log(`%c [OTP GATEWAY ACTIVE] `, 'background: #112240; color: #64ffda; font-weight: bold;');
             
             alert(`[OTP GATEWAY ALERT]\n\nMessage sent to +91 ${ADMIN_MOBILE}\nYour Secret Verification OTP Token is: ${currentGeneratedOtp}`);
