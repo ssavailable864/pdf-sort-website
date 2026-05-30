@@ -40,7 +40,7 @@
                 <label style="font-size:12px; color:var(--text-gray);">📅 DATE:</label>
                 <input type="date" id="globalDate" class="date-picker">
             </div>
-            <a href="/" class="tab-btn" style="background:#233554; color:white;">← Back</a>
+            <a href="javascript:void(0);" onclick="window.location.replace(window.location.origin);" class="tab-btn" style="background:#233554; color:white; text-decoration:none;">← Back</a>
             <button class="tab-btn active">Daily Picked List</button>
         </div>
     </div>
@@ -82,7 +82,7 @@
     </div>
 
     <script>
-        const GOOGLE_SHEET_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwCbLlzIysbp7QU23RefFxAcEEZZEzL598P_Nho3z76dRGtLxDw-BvjbLMqW1YNe9ix/exec";
+        const GOOGLE_SHEET_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwCbLlzIysbp7QU23RefFxAcEEZZEzL598P_Nho3z76dRGtLxDw-BvjbLMqW1YNe9ix/exec	";
         let masterCatalogMap = {};
         let scannedGridItems = [];
 
