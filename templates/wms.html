@@ -82,7 +82,8 @@
     </div>
 
     <script>
-        const GOOGLE_SHEET_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwCbLlzIysbp7QU23RefFxAcEEZZEzL598P_Nho3z76dRGtLxDw-BvjbLMqW1YNe9ix/exec	";
+        // Space completely clean kar diya hai URL se ab!
+        const GOOGLE_SHEET_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwCbLlzIysbp7QU23RefFxAcEEZZEzL598P_Nho3z76dRGtLxDw-BvjbLMqW1YNe9ix/exec";
         let masterCatalogMap = {};
         let scannedGridItems = [];
 
@@ -98,12 +99,14 @@
                 const data = await response.json();
                 data.forEach(item => {
                     if(item.sku) {
-                        masterCatalogMap[item.sku.toUpperCase()] = {
+                        // Master sheet data key mapping (G, B, H columns verification)
+                        masterCatalogMap[item.sku.toString().trim().toUpperCase()] = {
                             name: item.name || 'Unknown Title',
                             price: item.price || 0
                         };
                     }
                 });
+                console.log("Master catalog initialized perfectly!");
             } catch(e) { console.error("Database initialization failed", e); }
         }
 
@@ -117,8 +120,8 @@
             
             if(!sku) return;
             
-            // Database Validation VLOOKUP Equivalent
-            const matched = masterCatalogMap[sku] || { name: "Unknown (Check Sheet SKU)", price: 0 };
+            // Database validation trigger
+            const matched = masterCatalogMap[sku] || { name: "Unknown (Check Master Sheet)", price: 0 };
             
             scannedGridItems.unshift({
                 id: Date.now(),
