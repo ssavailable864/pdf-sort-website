@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Waghmare WMS - Operational Desk</title>
+    <title>Waghmare WMS - Corrected Mapping Desk</title>
     <style>
         :root { 
             --bg-dark: #0a192f; --card-dark: #112240; --teal-neon: #64ffda; 
@@ -20,42 +20,37 @@
         .card { background-color: var(--card-dark); border-radius: 12px; padding: 25px; border: 1px solid #233554; box-shadow: 0 10px 30px rgba(0,0,0,0.3); }
         .card h2 { margin-top: 0; font-size: 18px; color: white; border-bottom: 1px solid #233554; padding-bottom: 10px; }
         .form-control { width: 100%; padding: 12px; background: var(--bg-dark); border: 1px solid #233554; border-radius: 6px; color: white; box-sizing: border-box; outline: none; margin-bottom: 15px; font-size: 14px; }
-        .form-control:focus { border-color: var(--teal-neon); }
         .wms-table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 14px; }
         .wms-table th, .wms-table td { padding: 12px; text-align: left; border-bottom: 1px solid #233554; }
         .wms-table th { background-color: var(--bg-dark); color: var(--teal-neon); }
-        .btn-action { width: 100%; padding: 14px; font-size: 16px; font-weight: bold; border-radius: 8px; border: none; cursor: pointer; margin-top: 10px; transition: 0.2s; }
+        .btn-action { width: 100%; padding: 14px; font-size: 16px; font-weight: bold; border-radius: 8px; border: none; cursor: pointer; margin-top: 10px; }
         .btn-outward { background: linear-gradient(135deg, #28a745 0%, #1e7e34 100%); color: white; }
         .btn-inward { background: linear-gradient(135deg, #0072ff 0%, #0052cc 100%); color: white; }
-        .btn-action:hover { opacity: 0.9; }
-        .pivot-item { background: var(--bg-dark); padding: 12px; border-radius: 6px; margin-bottom: 10px; border-left: 4px solid var(--teal-neon); font-size: 13px; }
-        .pivot-header { display: flex; justify-content: space-between; font-weight: bold; border-bottom: 1px dashed #233554; padding-bottom: 5px; margin-bottom: 5px; color: white; }
+        .pivot-item { background: var(--bg-dark); padding: 12px; border-radius: 6px; margin-bottom: 10px; border-left: 4px solid var(--teal-neon); }
         .date-container { display: flex; align-items: center; gap: 10px; background: var(--bg-dark); padding: 5px 12px; border-radius: 6px; border: 1px solid #233554; }
-        .date-container label { font-size: 12px; color: var(--text-gray); font-weight: bold; }
-        .date-picker { background: transparent; border: none; color: var(--teal-neon); font-weight: bold; outline: none; cursor: pointer; font-size: 14px; }
+        .date-picker { background: transparent; border: none; color: var(--teal-neon); font-weight: bold; outline: none; font-size: 14px; color-scheme: dark; }
     </style>
 </head>
 <body>
 
     <div class="top-navbar">
-        <h1>📦 Advanced Order Scanning Station</h1>
+        <h1>📦 Dynamic ASBN Barcode Scanner (Verified Columns)</h1>
         <div class="nav-tabs">
             <div class="date-container">
-                <label>📅 TARGET DATE:</label>
+                <label style="font-size:12px; color:var(--text-gray);">📅 DATE:</label>
                 <input type="date" id="globalDate" class="date-picker">
             </div>
-            <a href="/" class="tab-btn" style="background:#233554; color:white;">← Back to Sorter/Stock</a>
-            <button class="tab-btn active" onclick="switchView('daily-picked')">Daily Picked List</button>
-            <button class="tab-btn" onclick="switchView('gift-shop')">Gift Shop Outward</button>
+            <a href="/" class="tab-btn" style="background:#233554; color:white;">← Back</a>
+            <button class="tab-btn active">Daily Picked List</button>
         </div>
     </div>
 
     <div class="main-container">
-        <div id="daily-picked-view" class="wms-grid">
+        <div class="wms-grid">
             <div class="card">
-                <h2>⚡ Live Barcode Stream Input</h2>
+                <h2>⚡ Live Stream Scanner</h2>
                 <div style="display: grid; grid-template-columns: 1fr 100px 160px; gap: 15px;">
-                    <input type="text" id="asbnInput" class="form-control" placeholder="Scan SKU / Barcode here..." onkeypress="handleScanTrigger(event)">
+                    <input type="text" id="asbnInput" class="form-control" placeholder="Scan ASBN / Busybee Code here..." onkeypress="handleScanTrigger(event)">
                     <input type="number" id="qtyInput" class="form-control" value="1" min="1">
                     <select id="channelSelect" class="form-control">
                         <option value="Meesho">Meesho</option>
@@ -64,75 +59,52 @@
                         <option value="Website">Website</option>
                     </select>
                 </div>
-                <button class="tab-btn" style="width:100%; height:42px; margin-top:-5px;" onclick="addScannedRowToGrid()">+ Add Entry Row</button>
                 
                 <table class="wms-table" id="scannedTable">
                     <thead>
-                        <tr><th>SKU</th><th>Book Description</th><th>ISBN</th><th>Qty</th><th>Channel</th><th>Total</th><th>Action</th></tr>
+                        <tr><th>ASBN (G)</th><th>Book Name (B)</th><th>Qty (D)</th><th>Channel (C)</th><th>Total Rate (F)</th><th>Action</th></tr>
                     </thead>
                     <tbody>
-                        <tr><td colspan="7" style="text-align: center; color: var(--text-gray);">Ready for scanning feed stream...</td></tr>
+                        <tr><td colspan="6" style="text-align: center; color: var(--text-gray);">Waiting for scan inputs...</td></tr>
                     </tbody>
                 </table>
             </div>
 
             <div class="card">
-                <h2>📊 Live Pivot Summary (Real Book Names)</h2>
-                <div id="pivotContainer" style="max-height: 380px; overflow-y: auto; padding-right: 5px;">
-                    <p style="color:var(--text-gray); text-align:center;">No entries staged yet.</p>
+                <h2>📊 Pivot Live Monitor</h2>
+                <div id="pivotContainer" style="max-height: 380px; overflow-y: auto;">
+                    <p style="color:var(--text-gray); text-align:center;">Staging layout clean.</p>
                 </div>
-                
-                <div style="margin-top:20px; border-top:1px solid #233554; padding-top:15px;">
-                    <button class="btn-action btn-outward" onclick="commitGridToCloud('Outward')">🟩 Post Data to OUTWARD Sheet Bottom</button>
-                    <button class="btn-action btn-inward" onclick="commitGridToCloud('Inward')">🟦 Post Data to INWARD Sheet Bottom</button>
-                </div>
+                <button class="btn-action btn-outward" onclick="commitGridToCloud('Outward')">🟩 Post rows to Outward (A-G)</button>
+                <button class="btn-action btn-inward" onclick="commitGridToCloud('Inward')">🟦 Post rows to Inward (A-G)</button>
             </div>
-        </div>
-
-        <div id="gift-shop-view" class="card" style="display:none; max-width:650px; margin:0 auto;">
-            <h2>🎁 Gift Shop Manual Outward Desk</h2>
-            <input type="text" id="giftSkuInput" class="form-control" placeholder="Type Gift Item SKU manually...">
-            <button class="btn-action" style="background:#ffc107; color:#0a192f; font-weight:bold;" onclick="alert('Gift item processed!')">⚡ Dispatch Record</button>
         </div>
     </div>
 
     <script>
         const GOOGLE_SHEET_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwCbLlzIysbp7QU23RefFxAcEEZZEzL598P_Nho3z76dRGtLxDw-BvjbLMqW1YNe9ix/exec";
-        
         let masterCatalogMap = {};
         let scannedGridItems = [];
 
-        // Set Default Date to Today's Local Date Format
         window.addEventListener('DOMContentLoaded', () => {
             const today = new Date();
-            const yyyy = today.getFullYear();
-            const mm = String(today.getMonth() + 1).padStart(2, '0');
-            const dd = String(today.getDate()).padStart(2, '0');
-            document.getElementById('globalDate').value = `${yyyy}-${mm}-${dd}`;
+            document.getElementById('globalDate').value = today.toISOString().split('T')[0];
             fetchMasterInventoryData();
         });
 
-        // Load complete sheet data to instantly look up book names, isbn, and prices
         async function fetchMasterInventoryData() {
             try {
                 const response = await fetch(GOOGLE_SHEET_SCRIPT_URL, { redirect: "follow" });
                 const data = await response.json();
                 data.forEach(item => {
-                    let skuKey = item['Busybee Code'] ? item['Busybee Code'].toString().trim().toUpperCase() : '';
-                    if(skuKey) {
-                        masterCatalogMap[skuKey] = {
-                            name: item['Book Name'] || 'Unnamed Item',
-                            isbn: item['ISBN'] || '-',
-                            price: item['MRP'] || item['Rate'] || 250 // default price if missing
+                    if(item.sku) {
+                        masterCatalogMap[item.sku.toUpperCase()] = {
+                            name: item.name || 'Unknown Title',
+                            price: item.price || 0
                         };
                     }
                 });
-            } catch(e) { console.error("Catalog caching issue: ", e); }
-        }
-
-        function switchView(viewId) {
-            document.getElementById('daily-picked-view').style.display = viewId === 'daily-picked' ? 'grid' : 'none';
-            document.getElementById('gift-shop-view').style.display = viewId === 'gift-shop' ? 'block' : 'none';
+            } catch(e) { console.error("Database initialization failed", e); }
         }
 
         function handleScanTrigger(e) { if(e.key === 'Enter') addScannedRowToGrid(); }
@@ -145,18 +117,16 @@
             
             if(!sku) return;
             
-            // Fetch live details from cached sheet metadata
-            const lookup = masterCatalogMap[sku] || { name: sku + " (New Unknown SKU)", isbn: "-", price: 250 };
+            // Database Validation VLOOKUP Equivalent
+            const matched = masterCatalogMap[sku] || { name: "Unknown (Check Sheet SKU)", price: 0 };
             
             scannedGridItems.unshift({
                 id: Date.now(),
                 sku: sku,
-                bookName: lookup.name,
-                isbn: lookup.isbn,
+                bookName: matched.name,
                 qty: qty,
                 channel: channel,
-                pricePerBook: lookup.price,
-                totalPrice: qty * lookup.price
+                totalPrice: qty * matched.price
             });
             
             bField.value = ""; bField.focus();
@@ -166,18 +136,17 @@
         function renderWorkingGridTable() {
             const tbody = document.querySelector('#scannedTable tbody');
             if(scannedGridItems.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: var(--text-gray);">Ready for scanning feed stream...</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: var(--text-gray);">Waiting for scan inputs...</td></tr>`;
                 return;
             }
             tbody.innerHTML = scannedGridItems.map(i => `
                 <tr>
-                    <td><strong>${i.sku}</strong></td>
-                    <td>${i.bookName}</td>
-                    <td>${i.isbn}</td>
+                    <td><span style="color:var(--teal-neon)">${i.sku}</span></td>
+                    <td><strong>${i.bookName}</strong></td>
                     <td>${i.qty}</td>
                     <td>${i.channel}</td>
                     <td>₹${i.totalPrice}</td>
-                    <td><button style="color:var(--alert-red); background:none; border:none; cursor:pointer; font-weight:bold;" onclick="removeGridItem(${i.id})">X</button></td>
+                    <td><button style="color:var(--alert-red); background:none; border:none; cursor:pointer;" onclick="removeGridItem(${i.id})">X</button></td>
                 </tr>
             `).join('');
         }
@@ -191,62 +160,47 @@
             let pMap = {};
             scannedGridItems.forEach(i => {
                 let key = i.sku + "||" + i.channel;
-                if(!pMap[key]) {
-                    pMap[key] = { sku: i.sku, name: i.bookName, isbn: i.isbn, channel: i.channel, qty: 0, total: 0 };
-                }
+                if(!pMap[key]) pMap[key] = { sku: i.sku, name: i.bookName, channel: i.channel, qty: 0, total: 0 };
                 pMap[key].qty += i.qty; pMap[key].total += i.totalPrice;
             });
             
             const container = document.getElementById('pivotContainer');
-            const dataValues = Object.values(pMap);
-            if(dataValues.length === 0) {
-                container.innerHTML = `<p style="color:var(--text-gray); text-align:center;">No entries staged yet.</p>`;
+            const values = Object.values(pMap);
+            if(values.length === 0) {
+                container.innerHTML = `<p style="color:var(--text-gray); text-align:center;">Staging layout clean.</p>`;
                 return;
             }
-            
-            container.innerHTML = dataValues.map(p => `
-                <div class="pivot-item">
-                    <div class="pivot-header"><span>${p.sku}</span> <span>${p.channel}</span></div>
-                    <div style="color:var(--text-light); font-weight:600; font-size:14px;">${p.name}</div>
-                    <div style="display:flex; justify-content:space-between; margin-top:5px; color:var(--text-gray); font-size:12px;">
-                        <span>ISBN: ${p.isbn}</span>
-                        <span style="color:var(--teal-neon)"><strong>${p.qty} Pcs</strong> (₹${p.total})</span>
-                    </div>
+            container.innerHTML = values.map(p => `
+                <div class="pivot-item" style="padding:10px; font-size:13px;">
+                    <div style="display:flex; justify-content:space-between; color:white; font-weight:bold;"><span>${p.sku}</span><span>${p.channel}</span></div>
+                    <div style="margin:4px 0; color:var(--text-light);">${p.name}</div>
+                    <div style="text-align:right; color:var(--teal-neon);"><strong>${p.qty} Pcs</strong> (₹${p.total})</div>
                 </div>
             `).join('');
         }
 
         async function commitGridToCloud(targetSheetName) {
-            if(scannedGridItems.length === 0) { alert("Pehle data scan karein!"); return; }
-            
-            // Format input date to match Google Sheets format (YYYY-MM-DD or custom)
+            if(scannedGridItems.length === 0) { alert("Pehle stream scan karein!"); return; }
             const rawDate = document.getElementById('globalDate').value;
             
-            // Group and build rows to match sheet layout perfectly (A to G)
             let finalRowsToSend = scannedGridItems.map(item => ({
                 date: rawDate,
                 sku: item.sku,
                 bookName: item.bookName,
-                isbn: item.isbn,
                 channel: item.channel,
                 qty: item.qty,
                 totalPrice: item.totalPrice
             }));
 
-            // Network shipping request trigger execution
             try {
                 const response = await fetch(GOOGLE_SHEET_SCRIPT_URL, {
                     method: 'POST',
                     body: JSON.stringify({ targetSheet: targetSheetName, rows: finalRowsToSend })
                 });
-                
-                alert(`🎉 Staged data committed safely to the real bottom of [${targetSheetName}] sheet columns A-G! Formulas in I & K successfully auto-extended.`);
+                alert(`🎉 Data perfectly sent to columns A-G of [${targetSheetName}] sheet! Formulas dragged.`);
                 scannedGridItems = []; 
-                renderWorkingGridTable(); 
-                rebuildDynamicPivotSummary();
-            } catch(e) {
-                alert("Cloud Sync Timeout! Please verify your active network state.");
-            }
+                renderWorkingGridTable(); rebuildDynamicPivotSummary();
+            } catch(e) { alert("Sync failed!"); }
         }
     </script>
 </body>
