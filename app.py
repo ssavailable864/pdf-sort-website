@@ -17,7 +17,9 @@ os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 def home():
     return render_template("index.html")
 
+# FIXED: Ek hi function name rakha hai aur dono URL link kar diye hain
 @app.route('/wms')
+@app.route('/wms.html')
 def wms_panel():
     return render_template('wms.html') 
 

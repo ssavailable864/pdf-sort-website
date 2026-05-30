@@ -3,116 +3,277 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Waghmare WMS - Advanced Operational Desk</title>
+    <title>Waghmare WMS & Multi-Channel System</title>
     <style>
-        :root { 
-            --bg-dark: #0a192f; --card-dark: #112240; --teal-neon: #64ffda; 
-            --text-light: #ccd6f6; --text-gray: #8892b0; --alert-red: #ff4a4a; 
-        }
-        body { font-family: 'Segoe UI', Arial, sans-serif; background-color: var(--bg-dark); color: var(--text-light); margin: 0; padding: 0; }
-        .top-navbar { background-color: var(--card-dark); padding: 15px 30px; display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #233554; }
-        .top-navbar h1 { margin: 0; font-size: 20px; color: var(--teal-neon); }
-        .nav-tabs { display: flex; gap: 10px; }
-        .tab-btn { background: transparent; border: 1px solid var(--text-gray); color: var(--text-light); padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: 600; text-decoration: none;}
-        .tab-btn.active, .tab-btn:hover { background: var(--teal-neon); color: var(--bg-dark); border-color: var(--teal-neon); }
-        .main-container { max-width: 1350px; margin: 25px auto; padding: 0 20px; }
-        .wms-grid { display: grid; grid-template-columns: 1fr 440px; gap: 25px; }
-        .card { background-color: var(--card-dark); border-radius: 12px; padding: 25px; border: 1px solid #233554; box-shadow: 0 10px 30px rgba(0,0,0,0.3); }
-        .card h2 { margin-top: 0; font-size: 18px; color: white; border-bottom: 1px solid #233554; padding-bottom: 10px; }
-        .form-control { width: 100%; padding: 12px; background: var(--bg-dark); border: 1px solid #233554; border-radius: 6px; color: white; box-sizing: border-box; outline: none; margin-bottom: 15px; }
-        .wms-table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 14px; }
-        .wms-table th, .wms-table td { padding: 12px; text-align: left; border-bottom: 1px solid #233554; }
-        .wms-table th { background-color: var(--bg-dark); color: var(--teal-neon); }
-        .btn-action { width: 100%; padding: 14px; font-size: 16px; font-weight: bold; border-radius: 8px; border: none; cursor: pointer; margin-top: 10px; }
-        .btn-outward { background: linear-gradient(135deg, #ff4a4a 0%, #cc1111 100%); color: white; }
-        .btn-inward { background: linear-gradient(135deg, #28a745 0%, #1e7e34 100%); color: white; }
-        .pivot-item { display: flex; justify-content: space-between; background: var(--bg-dark); padding: 12px; border-radius: 6px; margin-bottom: 8px; border-left: 3px solid var(--teal-neon); font-size: 13px; }
+        body { font-family: 'Segoe UI', Arial, sans-serif; background-color: #0a192f; color: #ffffff; margin: 0; padding: 20px; }
+        .container { max-width: 1200px; margin: 0 auto; }
+        .nav-bar { display: flex; justify-content: space-between; align-items: center; background: #112240; padding: 15px 25px; border-radius: 12px; margin-bottom: 25px; border: 1px solid #233554; }
+        .nav-bar h2 { margin: 0; color: #64ffda; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 25px; }
+        .card { background: #112240; padding: 25px; border-radius: 15px; border: 1px solid #233554; box-shadow: 0 10px 30px rgba(0,0,0,0.3); }
+        .card h3 { color: #64ffda; margin-top: 0; border-bottom: 1px solid #233554; padding-bottom: 10px; }
+        .form-element { margin-bottom: 18px; }
+        .form-element label { display: block; margin-bottom: 8px; color: #8892b0; font-size: 14px; }
+        .input-box { width: 100%; padding: 12px; background: #0a192f; border: 1px solid #233554; border-radius: 6px; color: white; box-sizing: border-box; font-size: 16px; }
+        .input-box:focus { border-color: #64ffda; outline: none; }
+        .btn { width: 100%; padding: 14px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 15px; transition: 0.3s; margin-top: 10px; }
+        .btn-primary { background: #64ffda; color: #0a192f; }
+        .btn-primary:hover { background: #52d1b2; }
+        .btn-outward { background: #ff4a4a; color: white; }
+        .btn-inward { background: #28a745; color: white; }
+        
+        /* Modal Style for Mistake Protection */
+        .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(10,25,47,0.9); display: none; align-items: center; justify-content: center; z-index: 9999; }
+        .modal-content { background: #112240; padding: 35px; border-radius: 15px; text-align: center; max-width: 450px; border: 2px solid #64ffda; }
+        .modal-btns { display: flex; gap: 15px; margin-top: 25px; }
+        
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+        th, td { text-align: left; padding: 12px; border-bottom: 1px solid #233554; font-size: 14px; }
+        th { background: #0a192f; color: #64ffda; }
+        .log-section { margin-top: 30px; background: #112240; padding: 20px; border-radius: 12px; border: 1px solid #233554; }
     </style>
 </head>
 <body>
 
-    <div class="top-navbar">
-        <h1>📦 Advanced Order Scanning Station</h1>
-        <div class="nav-tabs">
-            <a href="/" class="tab-btn" style="background:#233554; color:white;">← Back to Sorter/Stock</a>
-            <button class="tab-btn active" onclick="switchView('daily-picked')">Daily Picked List</button>
-            <button class="tab-btn" onclick="switchView('gift-shop')">Gift Shop Outward</button>
-            <button class="tab-btn" onclick="switchView('live-logs')">Live Registry Logs</button>
+<div class="container">
+    <div class="nav-bar">
+        <h2>Waghmare WMS Dashboard</h2>
+        <a href="index.html" style="color: #64ffda; text-decoration: none; font-weight: bold;">← Switch to PDF SKU Sorter</a>
+    </div>
+
+    <div class="grid">
+        <div class="card">
+            <h3>📦 Daily Picklist Scan Engine</h3>
+            
+            <div class="form-element">
+                <label>Bulk / Box Quantity Multiplier (Agar box me ho to badlein)</label>
+                <input type="number" id="scanQty" class="input-box" value="1" min="1">
+            </div>
+
+            <div class="form-element">
+                <label>Scan Book ISBN / SKU (Automatic Next Line Reset)</label>
+                <input type="text" id="barcodeField" class="input-box" placeholder="Scan Barcode Here..." autofocus>
+            </div>
+
+            <div class="form-element">
+                <label>Select Channel Source</label>
+                <select id="channelMenu" class="input-box" onchange="checkCustomChannel()">
+                    <option value="Amazon SS">Amazon SS</option>
+                    <option value="Flipkart SS">Flipkart SS</option>
+                    <option value="Meesho Store">Meesho Store</option>
+                    <option value="Direct Retail">Direct Retail</option>
+                    <option value="CUSTOM_OPTION">-- Manual Custom Channel --</option>
+                </select>
+            </div>
+
+            <div class="form-element" id="customChannelFieldWrapper" style="display: none;">
+                <label>Type Your Custom Channel Name</label>
+                <input type="text" id="customChannelText" class="input-box" placeholder="Enter channel string...">
+            </div>
+
+            <div style="display: flex; gap: 15px; margin-top: 20px;">
+                <button class="btn btn-outward" onclick="prepareOperation('Outward')">Push to OUTWARD Sheet</button>
+                <button class="btn btn-inward" onclick="prepareOperation('Inward')">Push to INWARD Sheet</button>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>🎁 Gift Shop Platform</h3>
+            <p style="color: #8892b0; font-size: 13px;">Manual entry system with backend automatic formula dragging script.</p>
+            
+            <div class="form-element">
+                <label>Gift SKU Code</label>
+                <input type="text" id="giftSku" class="input-box" placeholder="Enter Gift SKU...">
+            </div>
+
+            <div class="form-element">
+                <label>Quantity</label>
+                <input type="number" id="giftQty" class="input-box" value="1">
+            </div>
+
+            <div class="form-element">
+                <label>Channel Name</label>
+                <input type="text" id="giftChannel" class="input-box" placeholder="e.g. Retail, Promotion">
+            </div>
+
+            <button class="btn btn-primary" onclick="submitGiftEntry()">Log & Drag Gift Entry</button>
         </div>
     </div>
 
-    <div class="main-container">
-        <div id="daily-picked-view" class="wms-grid">
-            <div class="card">
-                <h2>⚡ Dynamic Barcode / ASBN Scanner Intake</h2>
-                <div style="display: grid; grid-template-columns: 1fr 110px 160px; gap: 15px;">
-                    <input type="text" id="asbnInput" class="form-control" placeholder="Scan barcode..." onkeypress="handleScanTrigger(event)">
-                    <input type="number" id="qtyInput" class="form-control" value="1" min="1">
-                    <select id="channelSelect" class="form-control">
-                        <option value="Amazon SS">Amazon SS</option>
-                        <option value="Flipkart">Flipkart</option>
-                        <option value="Meesho">Meesho</option>
-                    </select>
-                </div>
-                <button class="tab-btn" style="width:100%; height:42px;" onclick="addScannedRowToGrid()">+ Add Entry Row</button>
-                <table class="wms-table" id="scannedTable">
-                    <thead><tr><th>ASBN</th><th>Product Description</th><th>Qty</th><th>Channel</th><th>Action</th></tr></thead>
-                    <tbody><tr><td colspan="5" style="text-align: center; color: var(--text-gray);">Pehle barcode stream scan karein...</td></tr></tbody>
-                </table>
-            </div>
+    <div class="log-section">
+        <h3 style="color: #64ffda; margin-top: 0;">📋 Active Session Pivot Scan Stream (Live Data Feed)</h3>
+        <table id="scanTable">
+            <thead>
+                <tr>
+                    <th>ISBN / SKU Code</th>
+                    <th>Book / Item Title</th>
+                    <th>Channel Code</th>
+                    <th>Quantity Count</th>
+                </tr>
+            </thead>
+            <tbody id="scanLogRows">
+                <tr><td colspan="4" style="color: #8892b0; text-align: center;">No active books scanned in this batch session yet.</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
 
-            <div class="card">
-                <h2>📊 Dynamic Pivot Breakdown (Live)</h2>
-                <div id="pivotContainer"><p style="color:var(--text-gray); text-align:center;">No entries staged yet.</p></div>
-                <button class="btn-action btn-outward" onclick="commitGridToCloud('Outward')">🟩 Move to OUTWARD Sheet</button>
-                <button class="btn-action btn-inward" onclick="commitGridToCloud('Inward')">🟦 Move to INWARD Sheet</button>
-            </div>
-        </div>
-
-        <div id="gift-shop-view" class="card" style="display:none; max-width:650px; margin:0 auto;">
-            <h2>🎁 Gift Shop Manual Outward Desk</h2>
-            <input type="text" id="giftSkuInput" class="form-control" placeholder="Type Gift Item SKU...">
-            <button class="btn-action" style="background:#ffc107; color:#0a192f;" onclick="alert('Processed Gift Outward!')">⚡ Dispatch</button>
-        </div>
-
-        <div id="live-logs-view" class="card" style="display:none;">
-            <h2>🔍 Session Registry Log Ledger</h2>
-            <table class="wms-table"><thead><tr><th>ASBN/SKU</th><th>Qty</th><th>Channel</th></tr></thead><tbody><tr><td colspan="3" style="text-align:center; color:var(--text-gray);">No history log loaded.</td></tr></tbody></table>
+<div class="modal" id="verificationModal">
+    <div class="modal-content">
+        <h2 id="modalTitle" style="color: #ff4a4a; margin-top: 0;">⚠️ Verification Notice</h2>
+        <p id="modalBody" style="color: #cbd5e1; font-size: 15px;">Kya aap sure hain ki is batch summary pivot report ko database me save karna chahte hain?</p>
+        <div class="modal-btns">
+            <button class="btn" style="background: #334155; color: white;" onclick="closeModalGate()">← Galti Se Hua (Go Back)</button>
+            <button class="btn btn-primary" id="confirmBtn" onclick="executeFinalCloudSync()">Yes, Sync to Sheets Now</button>
         </div>
     </div>
+</div>
 
-    <script>
-        let scannedGridItems = [];
-        function switchView(viewId) {
-            document.getElementById('daily-picked-view').style.display = viewId === 'daily-picked' ? 'grid' : 'none';
-            document.getElementById('gift-shop-view').style.display = viewId === 'gift-shop' ? 'block' : 'none';
-            document.getElementById('live-logs-view').style.display = viewId === 'live-logs' ? 'block' : 'none';
+<script>
+    // Master Cloud Configuration Endpoint
+    const GOOGLE_WMS_URL = "https://script.google.com/macros/s/AKfycbyXv4_nZVey_PJpGD_nMD-4kuvEKTSaY-G5prAHC3aIRo67OZ9KP_YWcIo98YM9G4je/exec"; // Replace with deployed Web App URL
+    
+    let scannedBatchItems = [];
+    let activePendingActionType = ""; // "Inward" or "Outward"
+    
+    // Auto-Focus & Non-Stop Scanning Listener Framework
+    const barcodeField = document.getElementById('barcodeField');
+    barcodeField.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            processBarcodeScan(this.value.trim());
+            this.value = ''; // Auto-clear line instantly without pressing enter manually twice
+            this.focus(); // Retain autofocus line for next fast book
         }
-        function handleScanTrigger(e) { if(e.key === 'Enter') addScannedRowToGrid(); }
-        function addScannedRowToGrid() {
-            const b = document.getElementById('asbnInput').value.trim();
-            const q = parseInt(document.getElementById('qtyInput').value) || 1;
-            const ch = document.getElementById('channelSelect').value;
-            if(!b) return;
-            scannedGridItems.unshift({ id: Date.now(), sku: b, qty: q, channel: ch });
-            document.getElementById('asbnInput').value = ""; document.getElementById('asbnInput').focus();
-            renderTable(); rebuildPivot();
+    });
+
+    function checkCustomChannel() {
+        const menu = document.getElementById('channelMenu').value;
+        document.getElementById('customChannelFieldWrapper').style.display = (menu === "CUSTOM_OPTION") ? "block" : "none";
+    }
+
+    function getSelectedChannel() {
+        const menu = document.getElementById('channelMenu').value;
+        if(menu === "CUSTOM_OPTION") {
+            return document.getElementById('customChannelText').value.trim() || "Custom Channel";
         }
-        function renderTable() {
-            const tbody = document.querySelector('#scannedTable tbody');
-            if(scannedGridItems.length===0) { tbody.innerHTML=`<tr><td colspan="5" style="text-align: center;">Scan details blank...</td></tr>`; return; }
-            tbody.innerHTML = scannedGridItems.map(i => `<tr><td>${i.sku}</td><td>Automatic Description Match</td><td>${i.qty}</td><td>${i.channel}</td><td><button onclick="removeGridItem(${i.id})">X</button></td></tr>`).join('');
-        }
-        function removeGridItem(id) { scannedGridItems = scannedGridItems.filter(i => i.id !== id); renderTable(); rebuildPivot(); }
-        function rebuildPivot() {
-            let pMap = {};
-            scannedGridItems.forEach(i => {
-                let key = i.sku + "||" + i.channel;
-                pMap[key] = (pMap[key] || 0) + i.qty;
+        return menu;
+    }
+
+    // Processing Live Scan Stream Engine
+    function processBarcodeScan(barcode) {
+        if(!barcode) return;
+        const qty = parseInt(document.getElementById('scanQty').value) || 1;
+        const channel = getSelectedChannel();
+        
+        // Mock Name Mapping system (Aap isme real dynamic data dictionary lookup inject kar sakte hai)
+        let determinedBookName = "Book SKU (" + barcode + ")";
+        
+        // Pivot consolidation engine local instance matching check
+        let existingItem = scannedBatchItems.find(item => item.isbn === barcode && item.channel === channel);
+        if(existingItem) {
+            existingItem.qty += qty;
+        } else {
+            scannedBatchItems.push({
+                isbn: barcode,
+                name: determinedBookName,
+                channel: channel,
+                qty: qty
             });
-            document.getElementById('pivotContainer').innerHTML = Object.keys(pMap).map(k => `<div class="pivot-item"><div><strong>${k.split('||')[0]}</strong> (${k.split('||')[1]})</div><div>${pMap[k]} Pcs</div></div>`).join('');
         }
-        function commitGridToCloud(target) { alert(`Successfully locked to ${target} Sheet!`); scannedGridItems = []; renderTable(); rebuildPivot(); }
-    </script>
+        renderLocalLogTable();
+    }
+
+    function renderLocalLogTable() {
+        const tbody = document.getElementById('scanLogRows');
+        if(scannedBatchItems.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="4" style="color: #8892b0; text-align: center;">No active books scanned in this batch session yet.</td></tr>`;
+            return;
+        }
+        tbody.innerHTML = scannedBatchItems.map(item => `
+            <tr>
+                <td><b>${item.isbn}</b></td>
+                <td>${item.name}</td>
+                <td><span style="color:#64ffda;">${item.channel}</span></td>
+                <td><b>${item.qty} Pcs</b></td>
+            </tr>
+        `).join('');
+    }
+
+    // Verification Gate Controls
+    function prepareOperation(operationType) {
+        if(scannedBatchItems.length === 0) {
+            alert("Pehle barcode scan karke books database stream me add karein!");
+            return;
+        }
+        activePendingActionType = operationType;
+        document.getElementById('modalTitle').innerText = "⚠️ Confirm " + operationType + " Process";
+        document.getElementById('modalBody').innerText = "Aap " + scannedBatchItems.length + " distinct items ka Pivot direct '" + operationType + "' sheet ke sabse neeche push karne jaa rahe hain. Kya data verify kiya hua hai?";
+        document.getElementById('verificationModal').style.display = "flex";
+    }
+
+    function closeModalGate() {
+        document.getElementById('verificationModal').style.display = "none";
+    }
+
+    // Secure Cloud Dynamic Multi-Sync Engine
+    async function executeFinalCloudSync() {
+        const confirmBtn = document.getElementById('confirmBtn');
+        confirmBtn.innerText = "Processing Vault Sync...";
+        confirmBtn.disabled = true;
+
+        try {
+            const payload = {
+                action: "bulkPush",
+                type: activePendingActionType,
+                items: scannedBatchItems
+            };
+
+            const response = await fetch(GOOGLE_WMS_URL, {
+                method: 'POST',
+                mode: 'no-cors',
+                headers: { 'Content-Type': 'text/plain' },
+                body: JSON.stringify(payload)
+            });
+
+            alert("✓ " + activePendingActionType + " Data Multi-Sync completed successfully! Added at the bottom row.");
+            scannedBatchItems = [];
+            renderLocalLogTable();
+            closeModalGate();
+        } catch (err) {
+            alert("Connection Error. Data not pushed.");
+        } finally {
+            confirmBtn.innerText = "Yes, Sync to Sheets Now";
+            confirmBtn.disabled = false;
+        }
+    }
+
+    // Gift Shop Outward Logic Platform Handler
+    async function submitGiftEntry() {
+        const sku = document.getElementById('giftSku').value.trim();
+        const qty = parseInt(document.getElementById('giftQty').value) || 1;
+        const channel = document.getElementById('giftChannel').value.trim();
+
+        if(!sku || !channel) {
+            alert("Gift SKU aur Channel fields dono manual bharna zaroori hai!");
+            return;
+        }
+
+        try {
+            const payload = { action: "giftPush", sku: sku, qty: qty, channel: channel };
+            await fetch(GOOGLE_WMS_URL, {
+                method: 'POST',
+                mode: 'no-cors',
+                headers: { 'Content-Type': 'text/plain' },
+                body: JSON.stringify(payload)
+            });
+            alert("✓ Gift Entry recorded & formulas automatically extended down to bottom!");
+            document.getElementById('giftSku').value = '';
+            document.getElementById('giftChannel').value = '';
+        } catch(e) {
+            alert("Gift processing failed.");
+        }
+    }
+</script>
 </body>
 </html>
