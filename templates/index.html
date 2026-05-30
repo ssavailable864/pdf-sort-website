@@ -850,14 +850,17 @@
                     return a.localeCompare(b);
                 });
 
-                // --- NEW EXCEL FORMAT INTERACTION ENGINE ---
+                // --- STRUCTURED CLEAN TABULAR EXCEL EXPORT ENGINE ---
                 let excelRows = [];
                 
+                let grandTotalLabelsCount = 0;
+                let grandTotalQtyPieces = 0;
+
                 for (let sku of sortedSkus) {
                     let qtyBreakdown = groupedData[sku];
                     let sortedQtys = Object.keys(qtyBreakdown).sort((a, b) => Number(a) - Number(b));
                     
-                    // Main Header Row for this SKU
+                    // Header Block Row for this current SKU
                     excelRows.push([`This label SKU`, sku, `QTY`, `Books name`]);
 
                     let orderCounter = 1;
@@ -873,7 +876,7 @@
                                 `Order ID [${orderCounter}]`, 
                                 records[r].orderId, 
                                 itemQty, 
-                                "" // Empty for manual or mapped Books name
+                                "" // Empty for manual writing or mapping 
                             ]);
                             orderCounter++;
                             currentSkuLabelsCount++;
@@ -881,14 +884,25 @@
                         }
                     }
 
-                    // Total Summaries at the end of each SKU block
+                    // Append to Grand Totals counters
+                    grandTotalLabelsCount += currentSkuLabelsCount;
+                    grandTotalQtyPieces += currentSkuQtyTotal;
+
+                    // Footer Summaries for each distinct SKU block
                     excelRows.push([`Total Batch Labels Count`, `${currentSkuLabelsCount} Labels`, "", ""]);
                     excelRows.push([`Total Qty Orders`, `${currentSkuQtyTotal} QTY`, "", ""]);
                     
-                    // Separation empty rows between different SKUs
+                    // Visual Blank Line Rows separator between blocks
                     excelRows.push(["", "", "", ""]);
                     excelRows.push(["", "", "", ""]);
                 }
+
+                // --- GRAND TOTAL FOOTER BLOCK ---
+                excelRows.push([`=======================================`, `=======================`, `==============`, `==============`]);
+                excelRows.push([`FINAL REPORT GRAND TOTAL`, ``, ``, ``]);
+                excelRows.push([`TOTAL LABELS (PARCELS)`, `${grandTotalLabelsCount} Labels`, ``, ``]);
+                excelRows.push([`TOTAL QTY (PIECES)`, `${grandTotalQtyPieces} QTY`, ``, ``]);
+                excelRows.push([`=======================================`, `=======================`, `==============`, `==============`]);
 
                 const wb = XLSX.utils.book_new();
                 const ws = XLSX.utils.aoa_to_sheet(excelRows);
