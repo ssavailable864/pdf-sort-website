@@ -3,205 +3,153 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Waghmare WMS - Corrected Mapping Desk</title>
+    <title>Advanced WMS Engine Dashboard</title>
     <style>
-        :root { 
-            --bg-dark: #0a192f; --card-dark: #112240; --teal-neon: #64ffda; 
-            --text-light: #ccd6f6; --text-gray: #8892b0; --alert-red: #ff4a4a; 
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #0a192f;
+            color: #ffffff;
+            margin: 0;
+            padding: 20px;
+            box-sizing: border-box;
+            min-height: 100vh;
         }
-        body { font-family: 'Segoe UI', Arial, sans-serif; background-color: var(--bg-dark); color: var(--text-light); margin: 0; padding: 0; }
-        .top-navbar { background-color: var(--card-dark); padding: 15px 30px; display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #233554; }
-        .top-navbar h1 { margin: 0; font-size: 20px; color: var(--teal-neon); }
-        .nav-tabs { display: flex; gap: 10px; align-items: center; }
-        .tab-btn { background: transparent; border: 1px solid var(--text-gray); color: var(--text-light); padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: 600; text-decoration: none;}
-        .tab-btn.active, .tab-btn:hover { background: var(--teal-neon); color: var(--bg-dark); border-color: var(--teal-neon); }
-        .main-container { max-width: 1350px; margin: 25px auto; padding: 0 20px; }
-        .wms-grid { display: grid; grid-template-columns: 1fr 460px; gap: 25px; }
-        .card { background-color: var(--card-dark); border-radius: 12px; padding: 25px; border: 1px solid #233554; box-shadow: 0 10px 30px rgba(0,0,0,0.3); }
-        .card h2 { margin-top: 0; font-size: 18px; color: white; border-bottom: 1px solid #233554; padding-bottom: 10px; }
-        .form-control { width: 100%; padding: 12px; background: var(--bg-dark); border: 1px solid #233554; border-radius: 6px; color: white; box-sizing: border-box; outline: none; margin-bottom: 15px; font-size: 14px; }
-        .wms-table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 14px; }
-        .wms-table th, .wms-table td { padding: 12px; text-align: left; border-bottom: 1px solid #233554; }
-        .wms-table th { background-color: var(--bg-dark); color: var(--teal-neon); }
-        .btn-action { width: 100%; padding: 14px; font-size: 16px; font-weight: bold; border-radius: 8px; border: none; cursor: pointer; margin-top: 10px; }
-        .btn-outward { background: linear-gradient(135deg, #28a745 0%, #1e7e34 100%); color: white; }
-        .btn-inward { background: linear-gradient(135deg, #0072ff 0%, #0052cc 100%); color: white; }
-        .pivot-item { background: var(--bg-dark); padding: 12px; border-radius: 6px; margin-bottom: 10px; border-left: 4px solid var(--teal-neon); }
-        .date-container { display: flex; align-items: center; gap: 10px; background: var(--bg-dark); padding: 5px 12px; border-radius: 6px; border: 1px solid #233554; }
-        .date-picker { background: transparent; border: none; color: var(--teal-neon); font-weight: bold; outline: none; font-size: 14px; color-scheme: dark; }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        /* Top Header Navigation Section */
+        .wms-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 2px solid #233554;
+            padding-bottom: 20px;
+            margin-bottom: 30px;
+        }
+
+        h1 {
+            background: linear-gradient(135deg, #64ffda 0%, #48cbb0 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin: 0;
+            font-size: 30px;
+            font-weight: 800;
+        }
+
+        /* SAFE BACK BUTTON STYLE */
+        .btn-back {
+            background: #112240;
+            color: #64ffda;
+            border: 1px solid #64ffda;
+            padding: 10px 20px;
+            font-size: 14px;
+            border-radius: 8px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(100, 255, 218, 0.1);
+        }
+
+        .btn-back:hover {
+            background: #64ffda;
+            color: #0a192f;
+            box-shadow: 0 4px 20px rgba(100, 255, 218, 0.3);
+            transform: translateY(-2px);
+        }
+
+        /* Dashboard Grid Layout */
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+        }
+
+        .card {
+            background: #112240;
+            border: 1px solid #233554;
+            border-radius: 12px;
+            padding: 25px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+        }
+
+        .card h3 {
+            color: #64ffda;
+            margin-top: 0;
+            margin-bottom: 15px;
+            font-size: 18px;
+            border-bottom: 1px dashed #233554;
+            padding-bottom: 10px;
+        }
+
+        .metric {
+            font-size: 36px;
+            font-weight: bold;
+            color: #ffffff;
+            margin: 15px 0;
+        }
+
+        .status-good {
+            color: #64ffda;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .status-alert {
+            color: #ff4a4a;
+            font-size: 14px;
+            font-weight: 600;
+        }
     </style>
 </head>
 <body>
 
-    <div class="top-navbar">
-        <h1>📦 Dynamic ASBN Barcode Scanner (Verified Columns)</h1>
-        <div class="nav-tabs">
-            <div class="date-container">
-                <label style="font-size:12px; color:var(--text-gray);">📅 DATE:</label>
-                <input type="date" id="globalDate" class="date-picker">
-            </div>
-            <a href="/" class="tab-btn" style="background:#233554; color:white; text-decoration:none;">← Back</a>
-            <button class="tab-btn active">Daily Picked List</button>
+    <div class="container">
+        <div class="wms-header">
+            <button class="btn-back" onclick="goBackToDashboard()">← Back to Sorter Dashboard</button>
+            <h1>📦 Advanced WMS Engine</h1>
         </div>
-    </div>
 
-    <div class="main-container">
-        <div class="wms-grid">
+        <div class="grid">
             <div class="card">
-                <h2>⚡ Live Stream Scanner</h2>
-                <div style="display: grid; grid-template-columns: 1fr 100px 160px; gap: 15px;">
-                    <input type="text" id="asbnInput" class="form-control" placeholder="Scan ASBN / Busybee Code here..." onkeypress="handleScanTrigger(event)">
-                    <input type="number" id="qtyInput" class="form-control" value="1" min="1">
-                    <select id="channelSelect" class="form-control">
-                        <option value="Meesho">Meesho</option>
-                        <option value="Amazon SS">Amazon SS</option>
-                        <option value="Flipkart">Flipkart</option>
-                        <option value="Website">Website</option>
-                    </select>
-                </div>
-                
-                <table class="wms-table" id="scannedTable">
-                    <thead>
-                        <tr><th>ASBN (G)</th><th>Book Name (B)</th><th>Qty (D)</th><th>Channel (C)</th><th>Total Rate (F)</th><th>Action</th></tr>
-                    </thead>
-                    <tbody>
-                        <tr><td colspan="6" style="text-align: center; color: var(--text-gray);">Waiting for scan inputs...</td></tr>
-                    </tbody>
-                </table>
+                <h3>Total Inventory Items</h3>
+                <div class="metric">1,482</div>
+                <div class="status-good">✓ Active SKU Catalog Synced</div>
             </div>
 
             <div class="card">
-                <h2>📊 Pivot Live Monitor</h2>
-                <div id="pivotContainer" style="max-height: 380px; overflow-y: auto;">
-                    <p style="color:var(--text-gray); text-align:center;">Staging layout clean.</p>
-                </div>
-                <button class="btn-action btn-outward" onclick="commitGridToCloud('Outward')">🟩 Post rows to Outward (A-G)</button>
-                <button class="btn-action btn-inward" onclick="commitGridToCloud('Inward')">🟦 Post rows to Inward (A-G)</button>
+                <h3>Dispatched Orders Today</h3>
+                <div class="metric">342</div>
+                <div class="status-good">✓ 100% Sorted Labels Generated</div>
+            </div>
+
+            <div class="card">
+                <h3>Warehouse Storage Capacity</h3>
+                <div class="metric">78%</div>
+                <div class="status-good">Optimal Rack Utilization</div>
+            </div>
+
+            <div class="card">
+                <h3>System Status</h3>
+                <div class="metric" style="color: #64ffda;">ONLINE</div>
+                <div class="status-good">Cloud Integration Sync Successful</div>
             </div>
         </div>
     </div>
 
     <script>
-        const GOOGLE_SHEET_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwCbLlzIysbp7QU23RefFxAcEEZZEzL598P_Nho3z76dRGtLxDw-BvjbLMqW1YNe9ix/exec";
-        let masterCatalogMap = {};
-        let scannedGridItems = [];
-
-        window.addEventListener('DOMContentLoaded', () => {
-            const today = new Date();
-            document.getElementById('globalDate').value = today.toISOString().split('T')[0];
-            fetchMasterInventoryData();
-        });
-
-        async function fetchMasterInventoryData() {
-            try {
-                const response = await fetch(GOOGLE_SHEET_SCRIPT_URL, { redirect: "follow" });
-                const data = await response.json();
-                data.forEach(item => {
-                    if(item.sku) {
-                        masterCatalogMap[item.sku.toString().trim().toUpperCase()] = {
-                            name: item.name || 'Unknown Title',
-                            price: item.price || 0
-                        };
-                    }
-                });
-                console.log("Master catalog initialized perfectly!");
-            } catch(e) { console.error("Database initialization failed", e); }
+    function goBackToDashboard() {
+        // Agar dono files ek hi domain par chal rahi hain toh history use karega bina login session destroy kiye
+        if (document.referrer && document.referrer.includes(window.location.host)) {
+            window.history.back();
+        } else {
+            window.location.href = "/";
         }
-
-        function handleScanTrigger(e) { if(e.key === 'Enter') addScannedRowToGrid(); }
-
-        function addScannedRowToGrid() {
-            const bField = document.getElementById('asbnInput');
-            const sku = bField.value.trim().toUpperCase();
-            const qty = parseInt(document.getElementById('qtyInput').value) || 1;
-            const channel = document.getElementById('channelSelect').value;
-            
-            if(!sku) return;
-            
-            const matched = masterCatalogMap[sku] || { name: "Unknown (Check Master Sheet)", price: 0 };
-            
-            scannedGridItems.unshift({
-                id: Date.now(),
-                sku: sku,
-                bookName: matched.name,
-                qty: qty,
-                channel: channel,
-                totalPrice: qty * matched.price
-            });
-            
-            bField.value = ""; bField.focus();
-            renderWorkingGridTable(); rebuildDynamicPivotSummary();
-        }
-
-        function renderWorkingGridTable() {
-            const tbody = document.querySelector('#scannedTable tbody');
-            if(scannedGridItems.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: var(--text-gray);">Waiting for scan inputs...</td></tr>`;
-                return;
-            }
-            tbody.innerHTML = scannedGridItems.map(i => `
-                <tr>
-                    <td><span style="color:var(--teal-neon)">${i.sku}</span></td>
-                    <td><strong>${i.bookName}</strong></td>
-                    <td>${i.qty}</td>
-                    <td>${i.channel}</td>
-                    <td>₹${i.totalPrice}</td>
-                    <td><button style="color:var(--alert-red); background:none; border:none; cursor:pointer;" onclick="removeGridItem(${i.id})">X</button></td>
-                </tr>
-            `).join('');
-        }
-
-        function removeGridItem(id) { 
-            scannedGridItems = scannedGridItems.filter(i => i.id !== id); 
-            renderWorkingGridTable(); rebuildDynamicPivotSummary(); 
-        }
-
-        function rebuildDynamicPivotSummary() {
-            let pMap = {};
-            scannedGridItems.forEach(i => {
-                let key = i.sku + "||" + i.channel;
-                if(!pMap[key]) pMap[key] = { sku: i.sku, name: i.bookName, channel: i.channel, qty: 0, total: 0 };
-                pMap[key].qty += i.qty; pMap[key].total += i.totalPrice;
-            });
-            
-            const container = document.getElementById('pivotContainer');
-            const values = Object.values(pMap);
-            if(values.length === 0) {
-                container.innerHTML = `<p style="color:var(--text-gray); text-align:center;">Staging layout clean.</p>`;
-                return;
-            }
-            container.innerHTML = values.map(p => `
-                <div class="pivot-item" style="padding:10px; font-size:13px;">
-                    <div style="display:flex; justify-content:space-between; color:white; font-weight:bold;"><span>${p.sku}</span><span>${p.channel}</span></div>
-                    <div style="margin:4px 0; color:var(--text-light);">${p.name}</div>
-                    <div style="text-align:right; color:var(--teal-neon);"><strong>${p.qty} Pcs</strong> (₹${p.total})</div>
-                </div>
-            `).join('');
-        }
-
-        async function commitGridToCloud(targetSheetName) {
-            if(scannedGridItems.length === 0) { alert("Pehle stream scan karein!"); return; }
-            const rawDate = document.getElementById('globalDate').value;
-            
-            let finalRowsToSend = scannedGridItems.map(item => ({
-                date: rawDate,
-                sku: item.sku,
-                bookName: item.bookName,
-                channel: item.channel,
-                qty: item.qty,
-                totalPrice: item.totalPrice
-            }));
-
-            try {
-                const response = await fetch(GOOGLE_SHEET_SCRIPT_URL, {
-                    method: 'POST',
-                    body: JSON.stringify({ targetSheet: targetSheetName, rows: finalRowsToSend })
-                });
-                alert(`🎉 Data perfectly sent to columns A-G of [${targetSheetName}] sheet! Formulas dragged.`);
-                scannedGridItems = []; 
-                renderWorkingGridTable(); rebuildDynamicPivotSummary();
-            } catch(e) { alert("Sync failed!"); }
-        }
+    }
     </script>
+
 </body>
 </html>

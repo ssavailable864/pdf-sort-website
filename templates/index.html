@@ -405,13 +405,13 @@
 
     <div id="app-content">
         <div id="dashboard-view" style="width: 100%; display: flex; flex-direction: column; align-items: center;">
-
-<a href="wms.html" style="background: #64ffda; color: #0a192f; padding: 10px 20px; border-radius: 8px; text-decoration: none; font-weight: bold; margin-bottom: 20px; display: inline-block;">
-    ➔ Open Advanced WMS Engine Dashboard
-</a>
             <div class="marquee-container">
                 <div class="marquee-text">Developed by Waghmare Small Service &nbsp;&bull;&nbsp; PDF Automation Tool &nbsp;&bull;&nbsp; Inventory Management System</div>
             </div>
+
+            <a href="/wms" style="background: #64ffda; color: #0a192f; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: bold; margin-bottom: 20px; display: inline-block; box-shadow: 0 4px 14px rgba(100,255,218,0.3);">
+                ➜ Open Advanced WMS Engine Dashboard
+            </a>
 
             <div class="low-stock-card">
                 <div id="global-alert-banner" class="alert-banner">LOW STOCK DETECTED IN INVENTORY!</div>
@@ -468,6 +468,16 @@
     <script>
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
 
+        // Auto Login Restore to keep session alive during local navigation
+        window.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('login-error').style.display = 'none';
+            if(sessionStorage.getItem("isLoggedIn") === "true") {
+                document.getElementById('login-modal').style.display = 'none';
+                document.getElementById('app-content').style.display = 'flex';
+                fetchSheetInventory();
+            }
+        });
+
         // Source Code Inspect Protections
         document.addEventListener('contextmenu', event => event.preventDefault()); 
         document.onkeydown = function(e) {
@@ -488,11 +498,6 @@
         let currentGeneratedOtp = null;
         let isRecoveryMode = false;
         let fullInventoryData = [];
-
-        // App start triggers
-        window.addEventListener('DOMContentLoaded', () => {
-            document.getElementById('login-error').style.display = 'none';
-        });
 
         // Fetch Credentials from Google Sheet via Apps Script
         async function verifyDatabaseCredentials() {
@@ -597,6 +602,7 @@
                     document.getElementById('recovery-section').style.display = 'block';
                     document.getElementById('otp-status-msg').style.display = 'none';
                 } else {
+                    sessionStorage.setItem("isLoggedIn", "true"); // Save login session
                     document.getElementById('login-modal').style.display = 'none';
                     document.getElementById('app-content').style.display = 'flex';
                     fetchSheetInventory();
@@ -854,59 +860,51 @@
                     return a.localeCompare(b);
                 });
 
-                // --- STRUCTURED CLEAN TABULAR EXCEL EXPORT ENGINE ---
                 let excelRows = [];
-                
-                let grandTotalLabelsCount = 0;
-                let grandTotalQtyPieces = 0;
+                excelRows.push(["SKU", "BATCH TYPE (QTY)", "METRICS / ORDER ID", "COUNT / VALUES"]);
+
+                let overallGrandTotalLabels = 0;
+                let overallGrandTotalPieces = 0;
 
                 for (let sku of sortedSkus) {
                     let qtyBreakdown = groupedData[sku];
                     let sortedQtys = Object.keys(qtyBreakdown).sort((a, b) => Number(a) - Number(b));
                     
-                    // Header Block Row for this current SKU
-                    excelRows.push([`This label SKU`, sku, `QTY`, `Books name`]);
+                    let skuTotalLabels = 0;
+                    let skuTotalPieces = 0;
 
-                    let orderCounter = 1;
-                    let currentSkuLabelsCount = 0;
-                    let currentSkuQtyTotal = 0;
+                    excelRows.push(["", "", "", ""]); 
+                    excelRows.push([`SKU: ${sku}`, "", "", ""]); 
 
                     for (let qty of sortedQtys) {
                         let records = qtyBreakdown[qty];
-                        let itemQty = Number(qty);
+                        let labelCount = records.length;
+                        let pieceTotal = labelCount * Number(qty);
+                        
+                        skuTotalLabels += labelCount;
+                        skuTotalPieces += pieceTotal;
 
-                        for (let r = 0; r < records.length; r++) {
-                            excelRows.push([
-                                `Order ID [${orderCounter}]`, 
-                                records[r].orderId, 
-                                itemQty, 
-                                "" // Empty for manual writing or mapping 
-                            ]);
-                            orderCounter++;
-                            currentSkuLabelsCount++;
-                            currentSkuQtyTotal += itemQty;
+                        excelRows.push(["", `Labels with Qty ${qty}`, "Total Batch Labels Count", `${labelCount} Labels`]);
+                        excelRows.push(["", "", "Total Pieces Orders", `${pieceTotal} Pcs`]);
+                        excelRows.push(["", "", "--- ORDER IDs LIST ---", ""]);
+
+                        for(let r=0; r < records.length; r++) {
+                            excelRows.push(["", "", `Order ID [${r+1}]`, records[r].orderId]);
                         }
                     }
 
-                    // Append to Grand Totals counters
-                    grandTotalLabelsCount += currentSkuLabelsCount;
-                    grandTotalQtyPieces += currentSkuQtyTotal;
+                    excelRows.push([`SKU [${sku}] COMBINED TOTAL`, "", "Total SKU Labels", skuTotalLabels]);
+                    excelRows.push(["", "", "Total SKU Pieces", skuTotalPieces]);
+                    excelRows.push(["---------------------------------------", "----------------------", "---------------------------", "-----------------"]);
 
-                    // Footer Summaries for each distinct SKU block
-                    excelRows.push([`Total Batch Labels Count`, `${currentSkuLabelsCount} Labels`, "", ""]);
-                    excelRows.push([`Total Qty Orders`, `${currentSkuQtyTotal} QTY`, "", ""]);
-                    
-                    // Visual Blank Line Rows separator between blocks
-                    excelRows.push(["", "", "", ""]);
-                    excelRows.push(["", "", "", ""]);
+                    overallGrandTotalLabels += skuTotalLabels;
+                    overallGrandTotalPieces += skuTotalPieces;
                 }
 
-                // --- GRAND TOTAL FOOTER BLOCK ---
-                excelRows.push([`=======================================`, `=======================`, `==============`, `==============`]);
-                excelRows.push([`FINAL REPORT GRAND TOTAL`, ``, ``, ``]);
-                excelRows.push([`TOTAL LABELS (PARCELS)`, `${grandTotalLabelsCount} Labels`, ``, ``]);
-                excelRows.push([`TOTAL QTY (PIECES)`, `${grandTotalQtyPieces} QTY`, ``, ``]);
-                excelRows.push([`=======================================`, `=======================`, `==============`, `==============`]);
+                excelRows.push(["", "", "", ""]);
+                excelRows.push(["FINAL GRAND TOTAL REPORT (WHOLE PDF)", "", "", ""]);
+                excelRows.push(["", "", "TOTAL SHIPPING LABELS (PARSELS)", overallGrandTotalLabels]);
+                excelRows.push(["", "", "TOTAL COMBINED ITEMS / PIECES", overallGrandTotalPieces]);
 
                 const wb = XLSX.utils.book_new();
                 const ws = XLSX.utils.aoa_to_sheet(excelRows);
