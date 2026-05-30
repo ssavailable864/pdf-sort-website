@@ -1,0 +1,131 @@
+[33m4a56093[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m)[m forced utf-8 encoding
+[33m3c609a3[m Fixed requirements.txt encoding to clean UTF-8
+[33mb038d5f[m Fixed requirements encoding and fixed app.py function redundancy
+[33m9ea6bd7[m Fixed app.py routing for wms panel
+[33m2e6738a[m Moved wms to root
+[33mfcb9b89[m Moved wms to root
+[33mdf80169[m Fixed backend route for wms panel link
+[33meb1b013[m Fixed backend route for wms panel link
+[33m37d068c[m Fixed backend route for wms panel link
+[33mfa66d58[m Fixed backend route for wms panel link
+[33m6bb1e1f[m Fixed backend route for wms panel link
+[33m7ba6017[m Fixed backend route for wms panel link
+[33m6196feb[m Fixed backend route for wms panel link
+[33mb5c99ce[m Fixed backend route for wms panel link
+[33maa542eb[m Fixed backend route for wms panel link
+[33mecd6503[m Fixed backend route for wms panel link
+[33mb05c6b2[m Fixed backend route for wms panel link
+[33m56798ad[m Updated Amazon dashboard UI with premium dark theme and fixed live render link
+[33m3ce6565[m Fixed pdf text overlapping and linked live render dashboard
+[33md2eed3c[m Fixed pdf text overlapping and linked live render dashboard
+[33m135e593[m Fixed pdf text overlapping and linked live render dashboard
+[33ma3b491e[m Fixed pdf text overlapping and linked live render dashboard
+[33me5f9674[m Fixed pdf text overlapping and linked live render dashboard
+[33mcb60832[m Fixed pdf text overlapping and linked live render dashboard
+[33m417cd78[m Fixed pdf text overlapping and linked live render dashboard
+[33ma7abeb6[m Fixed pdf text overlapping and linked live render dashboard
+[33m527d6ba[m Fixed pdf text overlapping and linked live render dashboard
+[33m1bae1e3[m Fixed pdf text overlapping and linked live render dashboard
+[33md32cd4a[m Fixed pdf text overlapping and linked live render dashboard
+[33mea633f9[m Fixed pdf text overlapping and linked live render dashboard
+[33md172999[m Fixed pdf text overlapping and linked live render dashboard
+[33m2500be6[m Fixed pdf text overlapping and linked live render dashboard
+[33mf598b9c[m Fixed pdf text overlapping and linked live render dashboard
+[33m3e35c90[m Fixed pdf text overlapping and linked live render dashboard
+[33m0f1709a[m Fixed pdf text overlapping and linked live render dashboard
+[33mc0e17e8[m Fixed pdf text overlapping and linked live render dashboard
+[33mcee6dbd[m Fixed pdf text overlapping and linked live render dashboard
+[33m46940d6[m Fixed pdf text overlapping and linked live render dashboard
+[33mc4a3d98[m Fixed pdf text overlapping and linked live render dashboard
+[33me9796c1[m Fixed pdf text overlapping and linked live render dashboard
+[33mede648e[m Fixed pdf text overlapping and linked live render dashboard
+[33mf3948d0[m Fixed pdf text overlapping and linked live render dashboard
+[33m755087e[m Fixed pdf text overlapping and linked live render dashboard
+[33m4a7f50c[m Fixed pdf text overlapping and linked live render dashboard
+[33mc582b15[m Fixed pdf text overlapping and linked live render dashboard
+[33ma67b80e[m Fixed pdf text overlapping and linked live render dashboard
+[33md3cc542[m Fixed pdf text overlapping and linked live render dashboard
+[33mfc0b492[m Fixed pdf text overlapping and linked live render dashboard
+[33mcd48b80[m Fixed pdf text overlapping and linked live render dashboard
+[33mdadcc44[m Fixed pdf text overlapping and linked live render dashboard
+[33m234c889[m Fixed pdf text overlapping and linked live render dashboard
+[33m54b7ef1[m Fixed pdf text overlapping and linked live render dashboard
+[33m45d446b[m Fixed pdf text overlapping and linked live render dashboard
+[33m8186990[m Fixed pdf text overlapping and linked live render dashboard
+[33m5e1c43c[m Fixed pdf text overlapping and linked live render dashboard
+[33mf78509e[m Fixed pdf text overlapping and linked live render dashboard
+[33m0d57da4[m Fixed pdf text overlapping and linked live render dashboard
+[33m53acac0[m Fixed pdf text overlapping and linked live render dashboard
+[33m0a0cf48[m Fixed pdf text overlapping and linked live render dashboard
+[33m8dddb6e[m Fixed sub-string address overlap logic filtering fake short underscore codes
+[33m574ecea[m Fixed layout columns using absolute X coordinates to avoid short SKU alignment issues
+[33m0b607a3[m Fixed master summary overlapping layout issue
+[33m8dddb32[m Added a master summary index page at the beginning of the sorted PDF
+[33m9d8bfcc[m Applied deep luxury dark blue background and electric gradient titles
+[33me9a717f[m Applied deep luxury dark blue background and electric gradient titles
+[33m672d651[m Fixed address Sector91 text bug via explicit line anchoring
+[33m7614a70[m Added pure numeric 108 series SKU support
+[33m0dfa01a[m Enforced direct underscore matching and strictly blocked fuung invoice formats
+[33m9d1b525[m Deploying fully verified complete index.html template
+[33mf0d44c6[m Blocked long tracking IDs with underscore and prioritized alpha SKU
+[33m814073f[m Merged both underscore and alphanumeric SKU pattern matching
+[33m3d7269e[m Added user defined SKU prefix filter
+[33ma9c91a9[m Blocked couriers names and filtered precise alphanumeric SKUs
+[33m5bba3dc[m Fixed SKU priority matching for alphanumeric formats like APCD07
+[33m28e2f6a[m Fixed SKU sorting matching logic complete file
+[33me5dcd8a[m Confirmed full code deployment
+[33m02af020[m Fixed requirements library casing and encoding
+[33mc2083e6[m Fixed requirements text encoding issue
+[33me57f185[m Added vercel configuration
+[33m7c7e1fa[m Fixed port binding issue for Render
+[33mf526b3b[m Fixed 502 timeout issue with frontend sorting
+[33mb17eef8[m fixed final sku
+[33ma3f6dfd[m optimized speed and sku
+[33m29c76fe[m fixed final sku
+[33m8e06e07[m optimized speed and sku
+[33m5b4a429[m fixed final sku
+[33m22c35f3[m updated html UI + backend streaming fix
+[33m829b5ab[m optimized speed
+[33mbf9936d[m message
+[33m6f35935[m message
+[33m2f214a1[m fixed final sku
+[33m6b310bd[m optimized speed and skut
+[33mfe78b41[m optimized speed and sku
+[33mad536a8[m fixed final sku
+[33mbb2d3ed[m fixed final sku
+[33mae26e17[m fixed image bytes error
+[33m8ab7c3b[m final sku line fix
+[33m8684c59[m fixed real sku detection
+[33m82185db[m final sku sorting fix
+[33mf9b6d59[m real sku detection fixed
+[33m24eb68b[m crop ocr sku fixed
+[33m3639ddc[m strict sku filter
+[33m6086f5b[m hybrid sku sorting
+[33m16b03c9[m final sku fix
+[33md938beb[m fixed final sku
+[33m1c52145[m fixed final sku
+[33m498404d[m fixed final sku
+[33m3395248[m fixed final sku
+[33m879d695[m fixed real sku detection
+[33ma9ee9e9[m fixed sku sorting
+[33m1a5ed4a[m fixed extract page
+[33md198e76[m final sorting fix
+[33mc9e169e[m final fast sorting
+[33m85b932a[m fixed image bytes error
+[33me6584fd[m final sku fix
+[33me62f325[m changed to direct pdf text
+[33mb5a6970[m debug ocr text
+[33m84209d0[m fixed sku variable error
+[33m3afe4f9[m removed local tesseract
+[33m762c85b[m fixed template folder
+[33m002fc44[m fixed ocr dpi
+[33mf0c85c1[m final website ui
+[33m585a7fb[m final website ui
+[33m63506a3[m final sorting fix
+[33m9d96c50[m optimized render
+[33maee9e29[m removed pytesseract
+[33m26444e2[m fixed indentation
+[33m5226d01[m changed to ocr api
+[33mb649998[m render fixed
+[33mecdc7d8[m added requirements
+[33m82a6893[m first upload
