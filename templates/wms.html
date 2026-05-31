@@ -36,10 +36,16 @@
 <body>
 
 <div class="container">
-        <div class="wms-header">
-            <button class="btn-back" onclick="goBackToDashboard()">← Back to Sorter Dashboard</button>
-            <h1>📦 Advanced WMS Engine</h1>
-        </div>
+        <div class="wms-header" style="display: flex; align-items: center; gap: 20px; padding: 20px; border-bottom: 2px solid #64ffda; margin-bottom: 30px;">
+    
+    <button class="btn-back" onclick="GoBackToDashboard()" 
+        style="background: #64ffda; color: #0a192f; padding: 10px 20px; border-radius: 8px; border: none; font-weight: bold; cursor: pointer; text-decoration: none;">
+        ← Back to Sorter Dashboard
+    </button>
+
+    <h1 style="color: #64ffda; margin: 0; font-family: sans-serif;">📦 Advanced WMS Engine</h1>
+    
+</div>
     <script>
     function goBackToDashboard() {
         // Agar dono files ek hi domain par chal rahi hain toh history use karega bina login session destroy kiye
