@@ -3,153 +3,284 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Advanced WMS Engine Dashboard</title>
+    <title>Waghmare WMS & Multi-Channel System</title>
     <style>
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: #0a192f;
-            color: #ffffff;
-            margin: 0;
-            padding: 20px;
-            box-sizing: border-box;
-            min-height: 100vh;
-        }
-
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 20px;
-        }
-
-        /* Top Header Navigation Section */
-        .wms-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            border-bottom: 2px solid #233554;
-            padding-bottom: 20px;
-            margin-bottom: 30px;
-        }
-
-        h1 {
-            background: linear-gradient(135deg, #64ffda 0%, #48cbb0 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            margin: 0;
-            font-size: 30px;
-            font-weight: 800;
-        }
-
-        /* SAFE BACK BUTTON STYLE */
-        .btn-back {
-            background: #112240;
-            color: #64ffda;
-            border: 1px solid #64ffda;
-            padding: 10px 20px;
-            font-size: 14px;
-            border-radius: 8px;
-            font-weight: bold;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            box-shadow: 0 4px 15px rgba(100, 255, 218, 0.1);
-        }
-
-        .btn-back:hover {
-            background: #64ffda;
-            color: #0a192f;
-            box-shadow: 0 4px 20px rgba(100, 255, 218, 0.3);
-            transform: translateY(-2px);
-        }
-
-        /* Dashboard Grid Layout */
-        .grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 20px;
-        }
-
-        .card {
-            background: #112240;
-            border: 1px solid #233554;
-            border-radius: 12px;
-            padding: 25px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
-        }
-
-        .card h3 {
-            color: #64ffda;
-            margin-top: 0;
-            margin-bottom: 15px;
-            font-size: 18px;
-            border-bottom: 1px dashed #233554;
-            padding-bottom: 10px;
-        }
-
-        .metric {
-            font-size: 36px;
-            font-weight: bold;
-            color: #ffffff;
-            margin: 15px 0;
-        }
-
-        .status-good {
-            color: #64ffda;
-            font-size: 14px;
-            font-weight: 600;
-        }
-
-        .status-alert {
-            color: #ff4a4a;
-            font-size: 14px;
-            font-weight: 600;
-        }
+        body { font-family: 'Segoe UI', Arial, sans-serif; background-color: #0a192f; color: #ffffff; margin: 0; padding: 20px; }
+        .container { max-width: 1200px; margin: 0 auto; }
+        .nav-bar { display: flex; justify-content: space-between; align-items: center; background: #112240; padding: 15px 25px; border-radius: 12px; margin-bottom: 25px; border: 1px solid #233554; }
+        .nav-bar h2 { margin: 0; color: #64ffda; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 25px; }
+        .card { background: #112240; padding: 25px; border-radius: 15px; border: 1px solid #233554; box-shadow: 0 10px 30px rgba(0,0,0,0.3); }
+        .card h3 { color: #64ffda; margin-top: 0; border-bottom: 1px solid #233554; padding-bottom: 10px; }
+        .form-element { margin-bottom: 18px; }
+        .form-element label { display: block; margin-bottom: 8px; color: #8892b0; font-size: 14px; }
+        .input-box { width: 100%; padding: 12px; background: #0a192f; border: 1px solid #233554; border-radius: 6px; color: white; box-sizing: border-box; font-size: 16px; }
+        .input-box:focus { border-color: #64ffda; outline: none; }
+        .btn { width: 100%; padding: 14px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 15px; transition: 0.3s; margin-top: 10px; }
+        .btn-primary { background: #64ffda; color: #0a192f; }
+        .btn-primary:hover { background: #52d1b2; }
+        .btn-outward { background: #ff4a4a; color: white; }
+        .btn-inward { background: #28a745; color: white; }
+        
+        /* Modal Style for Mistake Protection */
+        .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(10,25,47,0.9); display: none; align-items: center; justify-content: center; z-index: 9999; }
+        .modal-content { background: #112240; padding: 35px; border-radius: 15px; text-align: center; max-width: 450px; border: 2px solid #64ffda; }
+        .modal-btns { display: flex; gap: 15px; margin-top: 25px; }
+        
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+        th, td { text-align: left; padding: 12px; border-bottom: 1px solid #233554; font-size: 14px; }
+        th { background: #0a192f; color: #64ffda; }
+        .log-section { margin-top: 30px; background: #112240; padding: 20px; border-radius: 12px; border: 1px solid #233554; }
     </style>
 </head>
 <body>
 
-    <div class="container">
+<div class="container">
         <div class="wms-header">
             <button class="btn-back" onclick="goBackToDashboard()">← Back to Sorter Dashboard</button>
             <h1>📦 Advanced WMS Engine</h1>
         </div>
 
-        <div class="grid">
-            <div class="card">
-                <h3>Total Inventory Items</h3>
-                <div class="metric">1,482</div>
-                <div class="status-good">✓ Active SKU Catalog Synced</div>
+
+<div class="container">
+    <div class="nav-bar">
+        <h2>Waghmare WMS Dashboard</h2>
+        <a href="index.html" style="color: #64ffda; text-decoration: none; font-weight: bold;">← Switch to PDF SKU Sorter</a>
+    </div>
+
+    <div class="grid">
+        <div class="card">
+            <h3>📦 Daily Picklist Scan Engine</h3>
+            
+            <div class="form-element">
+                <label>Bulk / Box Quantity Multiplier (Agar box me ho to badlein)</label>
+                <input type="number" id="scanQty" class="input-box" value="1" min="1">
             </div>
 
-            <div class="card">
-                <h3>Dispatched Orders Today</h3>
-                <div class="metric">342</div>
-                <div class="status-good">✓ 100% Sorted Labels Generated</div>
+            <div class="form-element">
+                <label>Scan Book ISBN / SKU (Automatic Next Line Reset)</label>
+                <input type="text" id="barcodeField" class="input-box" placeholder="Scan Barcode Here..." autofocus>
             </div>
 
-            <div class="card">
-                <h3>Warehouse Storage Capacity</h3>
-                <div class="metric">78%</div>
-                <div class="status-good">Optimal Rack Utilization</div>
+            <div class="form-element">
+                <label>Select Channel Source</label>
+                <select id="channelMenu" class="input-box" onchange="checkCustomChannel()">
+                    <option value="Amazon SS">Amazon SS</option>
+                    <option value="Flipkart SS">Flipkart SS</option>
+                    <option value="Meesho Store">Meesho Store</option>
+                    <option value="Direct Retail">Direct Retail</option>
+                    <option value="CUSTOM_OPTION">-- Manual Custom Channel --</option>
+                </select>
             </div>
 
-            <div class="card">
-                <h3>System Status</h3>
-                <div class="metric" style="color: #64ffda;">ONLINE</div>
-                <div class="status-good">Cloud Integration Sync Successful</div>
+            <div class="form-element" id="customChannelFieldWrapper" style="display: none;">
+                <label>Type Your Custom Channel Name</label>
+                <input type="text" id="customChannelText" class="input-box" placeholder="Enter channel string...">
             </div>
+
+            <div style="display: flex; gap: 15px; margin-top: 20px;">
+                <button class="btn btn-outward" onclick="prepareOperation('Outward')">Push to OUTWARD Sheet</button>
+                <button class="btn btn-inward" onclick="prepareOperation('Inward')">Push to INWARD Sheet</button>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>🎁 Gift Shop Platform</h3>
+            <p style="color: #8892b0; font-size: 13px;">Manual entry system with backend automatic formula dragging script.</p>
+            
+            <div class="form-element">
+                <label>Gift SKU Code</label>
+                <input type="text" id="giftSku" class="input-box" placeholder="Enter Gift SKU...">
+            </div>
+
+            <div class="form-element">
+                <label>Quantity</label>
+                <input type="number" id="giftQty" class="input-box" value="1">
+            </div>
+
+            <div class="form-element">
+                <label>Channel Name</label>
+                <input type="text" id="giftChannel" class="input-box" placeholder="e.g. Retail, Promotion">
+            </div>
+
+            <button class="btn btn-primary" onclick="submitGiftEntry()">Log & Drag Gift Entry</button>
         </div>
     </div>
 
-    <script>
-    function goBackToDashboard() {
-        // Agar dono files ek hi domain par chal rahi hain toh history use karega bina login session destroy kiye
-        if (document.referrer && document.referrer.includes(window.location.host)) {
-            window.history.back();
+    <div class="log-section">
+        <h3 style="color: #64ffda; margin-top: 0;">📋 Active Session Pivot Scan Stream (Live Data Feed)</h3>
+        <table id="scanTable">
+            <thead>
+                <tr>
+                    <th>ISBN / SKU Code</th>
+                    <th>Book / Item Title</th>
+                    <th>Channel Code</th>
+                    <th>Quantity Count</th>
+                </tr>
+            </thead>
+            <tbody id="scanLogRows">
+                <tr><td colspan="4" style="color: #8892b0; text-align: center;">No active books scanned in this batch session yet.</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="modal" id="verificationModal">
+    <div class="modal-content">
+        <h2 id="modalTitle" style="color: #ff4a4a; margin-top: 0;">⚠️ Verification Notice</h2>
+        <p id="modalBody" style="color: #cbd5e1; font-size: 15px;">Kya aap sure hain ki is batch summary pivot report ko database me save karna chahte hain?</p>
+        <div class="modal-btns">
+            <button class="btn" style="background: #334155; color: white;" onclick="closeModalGate()">← Galti Se Hua (Go Back)</button>
+            <button class="btn btn-primary" id="confirmBtn" onclick="executeFinalCloudSync()">Yes, Sync to Sheets Now</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Master Cloud Configuration Endpoint
+    const GOOGLE_WMS_URL = "https://script.google.com/macros/s/AKfycbwCbLlzIysbp7QU23RefFxAcEEZZEzL598P_Nho3z76dRGtLxDw-BvjbLMqW1YNe9ix/exec"; // Replace with deployed Web App URL
+    
+    let scannedBatchItems = [];
+    let activePendingActionType = ""; // "Inward" or "Outward"
+    
+    // Auto-Focus & Non-Stop Scanning Listener Framework
+    const barcodeField = document.getElementById('barcodeField');
+    barcodeField.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            processBarcodeScan(this.value.trim());
+            this.value = ''; // Auto-clear line instantly without pressing enter manually twice
+            this.focus(); // Retain autofocus line for next fast book
+        }
+    });
+
+    function checkCustomChannel() {
+        const menu = document.getElementById('channelMenu').value;
+        document.getElementById('customChannelFieldWrapper').style.display = (menu === "CUSTOM_OPTION") ? "block" : "none";
+    }
+
+    function getSelectedChannel() {
+        const menu = document.getElementById('channelMenu').value;
+        if(menu === "CUSTOM_OPTION") {
+            return document.getElementById('customChannelText').value.trim() || "Custom Channel";
+        }
+        return menu;
+    }
+
+    // Processing Live Scan Stream Engine
+    function processBarcodeScan(barcode) {
+        if(!barcode) return;
+        const qty = parseInt(document.getElementById('scanQty').value) || 1;
+        const channel = getSelectedChannel();
+        
+        // Mock Name Mapping system (Aap isme real dynamic data dictionary lookup inject kar sakte hai)
+        let determinedBookName = "Book SKU (" + barcode + ")";
+        
+        // Pivot consolidation engine local instance matching check
+        let existingItem = scannedBatchItems.find(item => item.isbn === barcode && item.channel === channel);
+        if(existingItem) {
+            existingItem.qty += qty;
         } else {
-            window.location.href = "/";
+            scannedBatchItems.push({
+                isbn: barcode,
+                name: determinedBookName,
+                channel: channel,
+                qty: qty
+            });
+        }
+        renderLocalLogTable();
+    }
+
+    function renderLocalLogTable() {
+        const tbody = document.getElementById('scanLogRows');
+        if(scannedBatchItems.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="4" style="color: #8892b0; text-align: center;">No active books scanned in this batch session yet.</td></tr>`;
+            return;
+        }
+        tbody.innerHTML = scannedBatchItems.map(item => `
+            <tr>
+                <td><b>${item.isbn}</b></td>
+                <td>${item.name}</td>
+                <td><span style="color:#64ffda;">${item.channel}</span></td>
+                <td><b>${item.qty} Pcs</b></td>
+            </tr>
+        `).join('');
+    }
+
+    // Verification Gate Controls
+    function prepareOperation(operationType) {
+        if(scannedBatchItems.length === 0) {
+            alert("Pehle barcode scan karke books database stream me add karein!");
+            return;
+        }
+        activePendingActionType = operationType;
+        document.getElementById('modalTitle').innerText = "⚠️ Confirm " + operationType + " Process";
+        document.getElementById('modalBody').innerText = "Aap " + scannedBatchItems.length + " distinct items ka Pivot direct '" + operationType + "' sheet ke sabse neeche push karne jaa rahe hain. Kya data verify kiya hua hai?";
+        document.getElementById('verificationModal').style.display = "flex";
+    }
+
+    function closeModalGate() {
+        document.getElementById('verificationModal').style.display = "none";
+    }
+
+    // Secure Cloud Dynamic Multi-Sync Engine
+    async function executeFinalCloudSync() {
+        const confirmBtn = document.getElementById('confirmBtn');
+        confirmBtn.innerText = "Processing Vault Sync...";
+        confirmBtn.disabled = true;
+
+        try {
+            const payload = {
+                action: "bulkPush",
+                type: activePendingActionType,
+                items: scannedBatchItems
+            };
+
+            const response = await fetch(GOOGLE_WMS_URL, {
+                method: 'POST',
+                mode: 'no-cors',
+                headers: { 'Content-Type': 'text/plain' },
+                body: JSON.stringify(payload)
+            });
+
+            alert("✓ " + activePendingActionType + " Data Multi-Sync completed successfully! Added at the bottom row.");
+            scannedBatchItems = [];
+            renderLocalLogTable();
+            closeModalGate();
+        } catch (err) {
+            alert("Connection Error. Data not pushed.");
+        } finally {
+            confirmBtn.innerText = "Yes, Sync to Sheets Now";
+            confirmBtn.disabled = false;
         }
     }
-    </script>
 
+    // Gift Shop Outward Logic Platform Handler
+    async function submitGiftEntry() {
+        const sku = document.getElementById('giftSku').value.trim();
+        const qty = parseInt(document.getElementById('giftQty').value) || 1;
+        const channel = document.getElementById('giftChannel').value.trim();
+
+        if(!sku || !channel) {
+            alert("Gift SKU aur Channel fields dono manual bharna zaroori hai!");
+            return;
+        }
+
+        try {
+            const payload = { action: "giftPush", sku: sku, qty: qty, channel: channel };
+            await fetch(GOOGLE_WMS_URL, {
+                method: 'POST',
+                mode: 'no-cors',
+                headers: { 'Content-Type': 'text/plain' },
+                body: JSON.stringify(payload)
+            });
+            alert("✓ Gift Entry recorded & formulas automatically extended down to bottom!");
+            document.getElementById('giftSku').value = '';
+            document.getElementById('giftChannel').value = '';
+        } catch(e) {
+            alert("Gift processing failed.");
+        }
+    }
+</script>
 </body>
 </html>
